@@ -107,6 +107,8 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
           "BasicInfoView.txtClanName.tooltip");
     private final JTextField txtModel = new JTextField();
     private final IntRangeTextField txtYear = new IntRangeTextField();
+    private final IntRangeTextField txtBuildYear = new IntRangeTextField();
+    private final JLabel lblBuildYear = createLabel("lblBuildYear", "");
     private final FactionComboBox cbFaction = new FactionComboBox();
     private final JLabel lblFaction = createLabel("lblFaction", "");
     private final DisplayTextField txtSource = new DisplayTextField(15);
@@ -123,6 +125,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     private final SourceBooks sourceBooks = new SourceBooks();
 
     private int prevYear = 3145;
+    private int prevBuildYear = -1;
     private String sourceAbbreviation;
     // endregion Variable Declarations
 
@@ -189,10 +192,19 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         add(createLabel(resourceMap, "lblYear", "BasicInfoView.txtYear.text",
               "BasicInfoView.txtYear.tooltip"), gbc);
         gbc.gridx = 1;
-        add(txtYear, gbc);
         txtYear.setToolTipText(resourceMap.getString("BasicInfoView.txtYear.tooltip"));
         txtYear.setMaximum(9999);
         txtYear.addFocusListener(this);
+        lblBuildYear.setText(resourceMap.getString("BasicInfoView.txtBuildYear.text"));
+        txtBuildYear.setToolTipText(resourceMap.getString("BasicInfoView.txtBuildYear.tooltip"));
+        txtBuildYear.setMaximum(9999);
+        txtBuildYear.setMinimum(0);
+        txtBuildYear.addFocusListener(this);
+        var yearPanel = Box.createHorizontalBox();
+        yearPanel.add(txtYear);
+        yearPanel.add(lblBuildYear);
+        yearPanel.add(txtBuildYear);
+        add(yearPanel, gbc);
 
         gbc.gridx = 0;
         gbc.gridy++;
@@ -301,6 +313,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         txtMulId.setText(en.getMulId() + "");
         browseMul.setEnabled(en.hasMulId());
         setYear(Math.max(en.getYear(), txtYear.getMinimum()));
+        setBuildYear(en.getOriginalBuildYear(), en.getYear());
         setSource(en.getSource());
         cbTechBase.removeActionListener(this);
         setTechBase(en.isClan(), en.isMixedTech());
@@ -369,6 +382,43 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     public void setYear(int year) {
         txtYear.setIntVal(year);
         refreshTechBase();
+        updateBuildYearPlaceholder();
+    }
+
+    /**
+     * Returns the build year value, or -1 if the field is empty (meaning "use intro year").
+     */
+    public int getBuildYear() {
+        if (txtBuildYear.getText().isBlank()) {
+            return -1;
+        }
+        return txtBuildYear.getIntVal(-1);
+    }
+
+    /**
+     * Sets the build year field. If the build year equals the intro year (not explicitly set),
+     * the field is left empty and the intro year is shown as placeholder text.
+     *
+     * @param buildYear the original build year value
+     * @param introYear the intro year for comparison
+     */
+    public void setBuildYear(int buildYear, int introYear) {
+        if (buildYear < 0 || buildYear == introYear) {
+            txtBuildYear.setText("");
+            prevBuildYear = -1;
+        } else {
+            txtBuildYear.setIntVal(buildYear);
+            prevBuildYear = buildYear;
+        }
+        updateBuildYearPlaceholder();
+    }
+
+    /**
+     * Updates the placeholder text of the build year field to show the current intro year.
+     */
+    private void updateBuildYearPlaceholder() {
+        txtBuildYear.putClientProperty("JTextField.placeholderText",
+              String.valueOf(getTechIntroYear()));
     }
 
     @Override
@@ -585,6 +635,8 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     public void focusGained(FocusEvent e) {
         if (e.getSource().equals(txtYear)) {
             prevYear = getTechIntroYear();
+        } else if (e.getSource().equals(txtBuildYear)) {
+            prevBuildYear = getBuildYear();
         }
     }
 
@@ -613,6 +665,10 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
             } finally {
                 setYear(prevYear);
             }
+        } else if (e.getSource() == txtBuildYear) {
+            int buildYear = getBuildYear();
+            prevBuildYear = buildYear;
+            listeners.forEach(l -> l.buildYearChanged(buildYear));
         } else if (e.getSource() == txtManualBV) {
             int manualBv = getManualBV();
             txtManualBV.setText((manualBv > 0) ? String.valueOf(manualBv) : "");

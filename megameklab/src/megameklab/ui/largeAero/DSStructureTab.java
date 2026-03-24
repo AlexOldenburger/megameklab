@@ -267,6 +267,18 @@ public class DSStructureTab extends ITab implements DropshipBuildListener, Armor
     }
 
     @Override
+    public void buildYearChanged(int buildYear) {
+        if (buildYear < 0) {
+            getSmallCraft().setOriginalBuildYear(getSmallCraft().getYear());
+        } else {
+            getSmallCraft().setOriginalBuildYear(buildYear);
+        }
+        panChassis.refresh();
+        panSummary.refresh();
+        panHeat.setFromAero(getSmallCraft());
+    }
+
+    @Override
     public void sourceChanged(String source) {
         getSmallCraft().setSource(source);
         refresh.refreshSummary();

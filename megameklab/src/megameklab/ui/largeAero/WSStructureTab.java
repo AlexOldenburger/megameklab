@@ -284,6 +284,18 @@ public class WSStructureTab extends ITab implements AdvancedAeroBuildListener, A
     }
 
     @Override
+    public void buildYearChanged(int buildYear) {
+        if (buildYear < 0) {
+            getJumpship().setOriginalBuildYear(getJumpship().getYear());
+        } else {
+            getJumpship().setOriginalBuildYear(buildYear);
+        }
+        panChassis.refresh();
+        panSummary.refresh();
+        panHeat.setFromAero(getJumpship());
+    }
+
+    @Override
     public void sourceChanged(String source) {
         getJumpship().setSource(source);
         refresh.refreshSummary();
