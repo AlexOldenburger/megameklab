@@ -924,7 +924,7 @@ public class PrintMek extends PrintEntity {
             baseRun--;
             fullRun--;
         }
-        return formatMovement(baseRun, fullRun);
+        return formatMovement(Math.max(0, baseRun), Math.max(0, fullRun));
     }
 
     private String formatQuadVeeFlank() {

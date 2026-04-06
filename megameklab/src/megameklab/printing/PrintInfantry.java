@@ -524,7 +524,7 @@ public class PrintInfantry extends PrintEntity {
 
     private String formatGroundMP() {
         int walk = infantry.getWalkMP();
-        if (walk == 0) {
+        if (infantry.hasMinimalGroundMP()) {
             return "0*";
         } else {
             return formatMovement(walk);

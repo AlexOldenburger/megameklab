@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2011-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -49,7 +49,9 @@ import javax.swing.*;
 import javax.swing.UIManager.LookAndFeelInfo;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import megamek.client.ui.Messages;
 import megamek.client.ui.clientGUI.GUIPreferences;
+import megamek.client.ui.dialogs.LicensingDialog;
 import megamek.client.ui.dialogs.UnitLoadingDialog;
 import megamek.client.ui.dialogs.abstractDialogs.BVDisplayDialog;
 import megamek.client.ui.dialogs.abstractDialogs.CostDisplayDialog;
@@ -711,10 +713,31 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         final JMenuItem miRefreshUnitCache = new JMenuItem(resources.getString("miRefreshUnitCache.text"));
         miRefreshUnitCache.setName("miRefreshUnitCache");
         miRefreshUnitCache.setMnemonic(KeyEvent.VK_U);
-        miRefreshUnitCache.addActionListener(evt -> MekSummaryCache.refreshUnitData(false));
+        miRefreshUnitCache.addActionListener(evt -> refreshUnitCache());
         refreshMenu.add(miRefreshUnitCache);
 
+        final JMenuItem miRebuildUnitCache = new JMenuItem(resources.getString("miRebuildUnitCache.text"));
+        miRebuildUnitCache.setName("miRebuildUnitCache");
+        miRebuildUnitCache.addActionListener(evt -> rebuildUnitCache());
+        refreshMenu.add(miRebuildUnitCache);
+
         return refreshMenu;
+    }
+
+    private void refreshUnitCache() {
+        MekSummaryCache mekSummaryCache = MekSummaryCache.getInstance();
+        UnitLoadingDialog unitLoadingDialog = new UnitLoadingDialog(owner.getFrame(), mekSummaryCache,
+              resources.getString("miRefreshUnitCache.text"), !mekSummaryCache.isLoading());
+        MekSummaryCache.refreshUnitData(false);
+        unitLoadingDialog.setVisible(true);
+    }
+
+    private void rebuildUnitCache() {
+        MekSummaryCache mekSummaryCache = MekSummaryCache.getInstance();
+        UnitLoadingDialog unitLoadingDialog = new UnitLoadingDialog(owner.getFrame(), mekSummaryCache,
+              resources.getString("miRebuildUnitCache.text"), !mekSummaryCache.isLoading());
+        MekSummaryCache.rebuildUnitData(false);
+        unitLoadingDialog.setVisible(true);
     }
 
     /**
@@ -1262,52 +1285,46 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
 
     // Show data about MegaMekLab
     private void aboutAction() {
-        // make the dialog
         JDialog dlg = new JDialog(owner.getFrame(), resources.getString("menu.help.about.title"));
 
-        // set up the contents
         JPanel child = new JPanel();
         child.setLayout(new BoxLayout(child, BoxLayout.Y_AXIS));
         child.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // set the text up.
         JLabel version = new JLabel(String.format(resources.getString("menu.help.about.version.format"),
               MMLConstants.VERSION));
+        version.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         JEditorPane body = new JEditorPane();
         body.setContentType("text/html");
         body.setEditable(false);
         body.setOpaque(false);
-        body.setText(resources.getString("menu.help.about.text"));
-
+        body.setText(buildAboutHtml());
+        body.setCaretPosition(0);
+        body.setAlignmentX(Component.CENTER_ALIGNMENT);
         body.addHyperlinkListener(e -> {
             if (e.getEventType() == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
-                if (java.awt.Desktop.isDesktopSupported()) {
-                    try {
-                        java.awt.Desktop.getDesktop().browse(e.getURL().toURI());
-                    } catch (Exception ex) {
-                        logger.error(ex, "Could not open link: {}", e.getURL());
-                    }
-                }
+                UIUtil.browse(e.getURL().toString(), owner.getFrame());
             }
         });
 
-        // center everything
-        version.setAlignmentX(Component.CENTER_ALIGNMENT);
-        body.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        // add to child panel
         child.add(new JLabel("\n"));
         child.add(version);
         child.add(new JLabel("\n"));
         child.add(body);
 
-        // then add child panel to the content pane.
         dlg.getContentPane().add(child);
         dlg.setLocationRelativeTo(owner.getFrame());
         dlg.setModal(true);
         dlg.setResizable(false);
         dlg.pack();
         dlg.setVisible(true);
+    }
+
+    private static String buildAboutHtml() {
+        return "<html><body width='" + UIUtil.scaleForGUI(500) + "'>"
+              + LicensingDialog.buildLegalHtml()
+              + "</body></html>";
     }
 
     // Show how to create fluff images for Record Sheets

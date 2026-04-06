@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2024-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMekLab.
  *
@@ -38,7 +38,6 @@ import static megameklab.util.UnitUtil.changeMountStatus;
 import static megameklab.util.UnitUtil.getCritsUsed;
 import static megameklab.util.UnitUtil.isNonMekOrTankWeapon;
 import static megameklab.util.UnitUtil.isValidLocation;
-import static megameklab.util.UnitUtil.removeAllMounted;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -65,6 +64,7 @@ import megamek.common.units.BipedMek;
 import megamek.common.units.Entity;
 import megamek.common.units.LandAirMek;
 import megamek.common.units.Mek;
+import megamek.common.units.MekConstructionUtil;
 import megamek.common.units.QuadMek;
 import megamek.common.units.TripodMek;
 import megamek.common.weapons.c3.ISC3M;
@@ -876,27 +876,6 @@ public final class MekUtil {
     }
 
     /**
-     * Clears all links of the given equipment to other equipment and un-allocates it (assigns to LOC_NONE). Note: Does
-     * not clear the equipment's crit slots from its former location. For this, use
-     * {@link UnitUtil#removeCriticalSlots(Entity, Mounted)}
-     */
-    public static void clearMountedLocationAndLinked(Mounted<?> equipment) {
-        if ((Entity.LOC_NONE != equipment.getLocation()) && !equipment.isOneShot()) {
-            if (equipment.getLinked() != null) {
-                equipment.getLinked().setLinkedBy(null);
-                equipment.setLinked(null);
-            }
-            if (equipment.getLinkedBy() != null) {
-                equipment.getLinkedBy().setLinked(null);
-                equipment.setLinkedBy(null);
-            }
-        }
-        equipment.setLocation(Entity.LOC_NONE, false);
-        equipment.setSecondLocation(Entity.LOC_NONE, false);
-        equipment.setSplit(false);
-    }
-
-    /**
      * Moves all equipment that is freely movable and unhittable (e.g. Endo Steel and Ferro-Fibrous but not CASE)
      * ("FMU") that is currently unallocated (LOC_NONE) to free locations on the Mek as long as there are any.
      */
@@ -1270,46 +1249,7 @@ public final class MekUtil {
      * @param mek the mek to update
      */
     public static void updateClanCasePlacement(Mek mek) {
-        boolean hadClanCase = mek.isClan() || mek.hasClanCaseEquipped();
-        if (hadClanCase) {
-            removeAllMounted(mek, EquipmentType.get(EquipmentTypeLookup.CLAN_CASE));
-            addClanCaseToExplosiveLocations(mek);
-        }
-    }
-
-    /**
-     * Adds Clan CASE to all locations on the Mek that have explosive equipment and don't already have CASE or CASE II.
-     * Unlike {@link Mek#addClanCase()}, this does not check tech base or existing Clan CASE presence.
-     * Respects per-location opt-out via {@link Mek#isClanCaseOptedOut(int)}.
-     *
-     * @param mek the mek to add Clan CASE to
-     */
-    public static void addClanCaseToExplosiveLocations(Mek mek) {
-        EquipmentType clCase = EquipmentType.get(EquipmentTypeLookup.CLAN_CASE);
-        for (int i = 0; i < mek.locations(); i++) {
-            if (mek.locationHasCase(i) || mek.hasCASEII(i)) {
-                continue;
-            }
-            // Respect per-location opt-out
-            if (mek.isClanCaseOptedOut(i)) {
-                continue;
-            }
-            boolean explosiveFound = false;
-            for (Mounted<?> m : mek.getEquipment()) {
-                if (m.getType().isExplosive(m, true)
-                      && ((m.getLocation() == i) || (m.getSecondLocation() == i))) {
-                    explosiveFound = true;
-                    break;
-                }
-            }
-            if (explosiveFound) {
-                try {
-                    mek.addEquipment(Mounted.createMounted(mek, clCase), i, false);
-                } catch (Exception ignored) {
-                    // 0-crit equipment shouldn't fail
-                }
-            }
-        }
+        MekConstructionUtil.updateClanCasePlacement(mek);
     }
 
     /**

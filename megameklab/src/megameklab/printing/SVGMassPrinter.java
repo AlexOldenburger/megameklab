@@ -1792,7 +1792,8 @@ public class SVGMassPrinter {
         }
         unitTypes.put(UnitType.SIZE, Messages.getString("MekSelectorDialog.SupportVee"));
 
-        Set<String> processedFiles = ConcurrentHashMap.newKeySet();
+        Map<String, String> processedFiles = new ConcurrentHashMap<>();
+        Map<String, Set<String>> duplicateUnits = new ConcurrentHashMap<>();
         Locale.setDefault(new MMLOptions().getLocale());
         EquipmentType.initializeTypes();
         CConfig.load();
@@ -1860,9 +1861,13 @@ public class SVGMassPrinter {
                   }
               }
               String name = generateName(entity);
-                  if (!processedFiles.add(name)) {
-                      logger.warn("Duplication detected! Hash {} already exists for {} {}", name,
-                        mekSummary.getFullChassis(), mekSummary.getModel());
+              String unitLogName = describeUnitForLog(mekSummary);
+              String existingUnit = processedFiles.putIfAbsent(name, unitLogName);
+              if (existingUnit != null) {
+                  duplicateUnits.computeIfAbsent(name, ignored -> ConcurrentHashMap.newKeySet())
+                        .add(unitLogName);
+                  logger.warn("Duplicate export name {}. Keeping {} and skipping {}.",
+                        name, existingUnit, unitLogName);
                   return null;
               }
 
@@ -1985,6 +1990,22 @@ public class SVGMassPrinter {
             jsonWriter.write("\n]}");
         } catch (IOException e) {
             logger.error("Failed to write JSON Lines file: {}", e.getMessage());
+        }
+
+        if (!duplicateUnits.isEmpty()) {
+            int duplicateCount = duplicateUnits.values().stream().mapToInt(Set::size).sum();
+            logger.warn("Skipped {} duplicate unit exports across {} generated names.",
+                  duplicateCount, duplicateUnits.size());
+            duplicateUnits.entrySet().stream()
+                  .sorted(Map.Entry.comparingByKey())
+                  .forEach(entry -> {
+                      List<String> skippedUnits = new ArrayList<>(entry.getValue());
+                      Collections.sort(skippedUnits);
+                      logger.warn("Duplicate export name {} summary. Kept {}. Skipped {}.",
+                            entry.getKey(),
+                            processedFiles.get(entry.getKey()),
+                            String.join(" | ", skippedUnits));
+                  });
         }
 
         logger.info("Processed {} units.", processedCounter.get());
@@ -2305,6 +2326,27 @@ public class SVGMassPrinter {
               .replaceAll("[^a-zA-Z0-9_]", "")
               .replaceAll("_+", "_")
               .replaceAll("^_+|_+$", "");
+    }
+
+    private static String describeUnitForLog(MekSummary mekSummary) {
+        StringBuilder description = new StringBuilder();
+        description.append(mekSummary.getFullChassis());
+        if ((mekSummary.getModel() != null) && !mekSummary.getModel().isBlank()) {
+            description.append(' ').append(mekSummary.getModel());
+        }
+        description.append(" [MUL ").append(mekSummary.getMulId()).append(']');
+
+        File sourceFile = mekSummary.getSourceFile();
+        if (sourceFile != null) {
+            description.append(" file=").append(sourceFile.getName());
+        }
+
+        String entryName = mekSummary.getEntryName();
+        if ((entryName != null) && !entryName.isBlank()) {
+            description.append(" entry=").append(entryName);
+        }
+
+        return description.toString();
     }
 
     private SVGMassPrinter() {

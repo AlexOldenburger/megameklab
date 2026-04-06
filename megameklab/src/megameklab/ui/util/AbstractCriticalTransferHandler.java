@@ -48,6 +48,7 @@ import megamek.logging.MMLogger;
 import megameklab.ui.EntitySource;
 import megameklab.ui.PopupMessages;
 import megameklab.util.AeroUtil;
+import megameklab.util.BattleArmorUtil;
 import megameklab.util.UnitUtil;
 
 import java.awt.Component;
@@ -224,7 +225,7 @@ public class AbstractCriticalTransferHandler extends TransferHandler {
             trooper = Integer.parseInt(split[1]);
         } catch (Exception e) {
             // the target is the unallocated equipment list
-            mounted.setBaMountLoc(BattleArmor.MOUNT_LOC_NONE);
+            BattleArmorUtil.unallocateMounted(battleArmor, mounted);
             doRefresh();
             return true;
         }
