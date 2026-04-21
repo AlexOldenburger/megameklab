@@ -46,7 +46,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.concurrent.CopyOnWriteArrayList;
-import javax.swing.*;
+import javax.swing.Box;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JTextField;
 
 import megamek.MMConstants;
 import megamek.client.ui.baseComponents.BooksIcon;
@@ -616,9 +623,8 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         boolean hasFaction = (currentFaction != null) && (currentFaction != Faction.NONE);
         if (showFaction || hasFaction) {
             cbFaction.removeActionListener(this);
-            Faction prevFaction = currentFaction;
             cbFaction.refresh(getTechIntroYear());
-            cbFaction.setSelectedItem(prevFaction);
+            cbFaction.setSelectedItem(currentFaction);
             cbFaction.addActionListener(this);
             if (cbFaction.getSelectedIndex() < 0) {
                 cbFaction.setSelectedIndex(0);

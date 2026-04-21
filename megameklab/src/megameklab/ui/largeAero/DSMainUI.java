@@ -49,7 +49,6 @@ import megamek.common.units.Entity;
 import megamek.common.units.EntityMovementMode;
 import megamek.common.units.SmallCraft;
 import megamek.common.verifier.TestEntity;
-import megamek.common.verifier.TestSmallCraft;
 import megamek.logging.MMLogger;
 import megameklab.ui.MegaMekLabMainUI;
 import megameklab.ui.dialog.FloatingEquipmentDatabaseDialog;

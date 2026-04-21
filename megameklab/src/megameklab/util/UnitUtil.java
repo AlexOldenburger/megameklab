@@ -147,7 +147,7 @@ public class UnitUtil {
               || miscType.hasFlag(MiscType.F_TRACKS)
               || miscType.hasFlag(MiscType.F_TALON)
               || (miscType.hasFlag(MiscType.F_STEALTH)
-                && (miscType.hasFlag(MiscType.F_MEK_EQUIPMENT) || miscType.hasFlag(MiscType.F_TANK_EQUIPMENT)))
+              && (miscType.hasFlag(MiscType.F_MEK_EQUIPMENT) || miscType.hasFlag(MiscType.F_TANK_EQUIPMENT)))
               || miscType.hasFlag(MiscType.F_CHAMELEON_SHIELD)
               || miscType.hasFlag(MiscType.F_BLUE_SHIELD)
               || miscType.hasFlag(MiscType.F_MAST_MOUNT)
@@ -608,8 +608,8 @@ public class UnitUtil {
                     if (cs != null) {
                         toAdd.add(cs);
                     }
-                    entity.setCritical(loc, slot, toAdd.get(0));
-                    toAdd.remove(0);
+                    entity.setCritical(loc, slot, toAdd.getFirst());
+                    toAdd.removeFirst();
                     slot++;
                 }
             }
@@ -1527,8 +1527,8 @@ public class UnitUtil {
     }
 
     /**
-     * Check that the unit is valid. When the "Use Game Year" setting is enabled, equipment intro
-     * dates are validated against the configured game year rather than the unit's intro year.
+     * Check that the unit is valid. When the "Use Game Year" setting is enabled, equipment intro dates are validated
+     * against the configured game year rather than the unit's intro year.
      *
      * @param unit The entity
      */

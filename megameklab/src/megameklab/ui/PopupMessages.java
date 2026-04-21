@@ -33,7 +33,6 @@
 package megameklab.ui;
 
 import java.awt.Component;
-import java.awt.Dimension;
 import java.io.File;
 import java.util.ResourceBundle;
 import javax.swing.JOptionPane;
@@ -45,9 +44,9 @@ import megamek.common.units.Entity;
 
 /**
  * This class contains static methods that each show a commonly used popup message, such as the "unit is invalid"
- * warning or common errors. The parent frame should ideally be not null. When in doubt, use Swing's utility method,
- * see below, where any component can be supplied to find a suitable frame for a popup message, and pass the result
- * to the methods herein.
+ * warning or common errors. The parent frame should ideally be not null. When in doubt, use Swing's utility method, see
+ * below, where any component can be supplied to find a suitable frame for a popup message, and pass the result to the
+ * methods herein.
  *
  * @see javax.swing.SwingUtilities#getWindowAncestor(Component)
  */

@@ -49,7 +49,6 @@ import javax.swing.*;
 import javax.swing.UIManager.LookAndFeelInfo;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
-import megamek.client.ui.Messages;
 import megamek.client.ui.clientGUI.GUIPreferences;
 import megamek.client.ui.dialogs.LicensingDialog;
 import megamek.client.ui.dialogs.UnitLoadingDialog;

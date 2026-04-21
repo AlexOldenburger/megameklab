@@ -256,7 +256,7 @@ public class StartupGUI extends SkinnedJPanel implements MenuBarOwner {
         JLabel labVersion = new JLabel(resourceMap.getString("version.text") + MMLConstants.VERSION, JLabel.CENTER);
         labVersion.setPreferredSize(new Dimension(250, 15));
         if (!skinSpec.fontColors.isEmpty()) {
-            labVersion.setForeground(skinSpec.fontColors.get(0));
+            labVersion.setForeground(skinSpec.fontColors.getFirst());
         }
 
         MegaMekButton btnLoadUnit = new MegaMekButton(resourceMap.getString("btnLoadUnit.text"),

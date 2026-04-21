@@ -37,9 +37,11 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.util.List;
 import java.util.stream.Collectors;
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.JLabel;
+import javax.swing.SwingConstants;
 
-import megamek.codeUtilities.MathUtility;
 import megamek.common.CriticalSlot;
 import megamek.common.SimpleTechLevel;
 import megamek.common.battleArmor.BattleArmor;
@@ -527,7 +529,7 @@ public class BAStructureTab extends ITab implements BABuildListener, ArmorAlloca
         double remainingTonnage = TestEntity.floor(
               totalTonnage - currentTonnage, Ceil.KILO);
         int points = (int) TestEntity.getRawArmorPoints(getBattleArmor(), remainingTonnage);
-        int maxArmor = MathUtility.clamp(getBattleArmor().getMaximumArmorPoints(), 0,
+        int maxArmor = Math.clamp(getBattleArmor().getMaximumArmorPoints(), 0,
               points + getBattleArmor().getOArmor(BattleArmor.LOC_TROOPER_1));
         armorFactorChanged(maxArmor);
         panArmor.removeListener(this);

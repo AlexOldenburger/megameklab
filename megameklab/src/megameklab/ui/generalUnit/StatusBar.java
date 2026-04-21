@@ -205,7 +205,7 @@ public class StatusBar extends ITab {
     private void refreshInvalid() {
         StringBuffer sb = new StringBuffer();
         invalid.setVisible(!testEntity.correctEntity(sb));
-        invalid.setToolTipText("<html>" + sb.toString().replaceAll("\n", "<br/>") + "</html>");
+        invalid.setToolTipText("<html>" + sb.toString().replace("\n", "<br/>") + "</html>");
     }
 
     private JFrame getParentFrame() {

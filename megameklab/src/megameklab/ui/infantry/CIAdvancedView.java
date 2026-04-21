@@ -172,7 +172,7 @@ public class CIAdvancedView extends IView {
             details.append(type1.getDisplayName()).append(" x").append(infantry.getProstheticEnhancement1Count());
         }
         if (infantry.hasProstheticEnhancement2()) {
-            if (details.length() > 0) {
+            if (!details.isEmpty()) {
                 details.append(", ");
             }
             ProstheticEnhancementType type2 = infantry.getProstheticEnhancement2();
@@ -191,7 +191,7 @@ public class CIAdvancedView extends IView {
             details.append(pair1Type.getDisplayName()).append(" x2");
         }
         if (infantry.hasExtraneousPair2()) {
-            if (details.length() > 0) {
+            if (!details.isEmpty()) {
                 details.append(", ");
             }
             ProstheticEnhancementType pair2Type = infantry.getExtraneousPair2();

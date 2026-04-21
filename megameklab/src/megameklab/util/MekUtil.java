@@ -421,7 +421,7 @@ public final class MekUtil {
             // remove it and pair them.
             // Unallocated singles in excess of engine capacity have already been removed.
             if (((toAdd & 1) == 1) && !allocatedSingle.isEmpty()) {
-                UnitUtil.removeMounted(mek, allocatedSingle.remove(0));
+                UnitUtil.removeMounted(mek, allocatedSingle.removeFirst());
                 mek.addEquipment(EquipmentType.get(EquipmentTypeLookup.COMPACT_HS_2), Entity.LOC_NONE);
                 toAdd--;
             }
@@ -678,14 +678,14 @@ public final class MekUtil {
             int crits = UnitUtil.getCritsUsed(mount);
             for (int i = 0; i < crits; i++) {
                 try {
-                    if (firstBlock || (locations.get(0) == Entity.LOC_NONE)) {
+                    if (firstBlock || (locations.getFirst() == Entity.LOC_NONE)) {
                         // create only one mount per equipment, for BV and stuff
-                        UnitUtil.addMounted(unit, mount, locations.get(0), false);
+                        UnitUtil.addMounted(unit, mount, locations.getFirst(), false);
                         if (firstBlock) {
                             firstBlock = false;
                         }
-                        if (locations.get(0) == Entity.LOC_NONE) {
-                            // only user-placable spread stuff gets location none
+                        if (locations.getFirst() == Entity.LOC_NONE) {
+                            // only user-placeable spread stuff gets location none
                             // for those, we need to create a mount for each crit,
                             // otherwise we can't correctly let the user place them
                             // luckily, that only affects TSM, so BV works out correctly
@@ -693,14 +693,14 @@ public final class MekUtil {
                         }
                     } else {
                         CriticalSlot cs = new CriticalSlot(mount);
-                        if (!unit.addCritical(locations.get(0), cs)) {
+                        if (!unit.addCritical(locations.getFirst(), cs)) {
                             UnitUtil.removeCriticalSlots(unit, mount);
                             JOptionPane.showMessageDialog(
                                   null,
                                   "No room for equipment",
                                   mount.getName()
                                         + " does not fit into "
-                                        + unit.getLocationName(locations.get(0)),
+                                        + unit.getLocationName(locations.getFirst()),
                                   JOptionPane.INFORMATION_MESSAGE);
 
                             if (mount instanceof MiscMounted) {
@@ -723,7 +723,7 @@ public final class MekUtil {
                     return null;
                 }
             }
-            locations.remove(0);
+            locations.removeFirst();
         }
         return mount;
     }

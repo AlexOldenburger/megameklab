@@ -219,7 +219,7 @@ public class CIWeaponView extends BuildView implements ActionListener {
             List<Mounted<?>> fieldGuns = inf.originalFieldWeapons();
             cbNumGuns.setSelectedIndex(fieldGuns.size());
             cbNumGuns.addActionListener(this);
-            txtGuns.setText(fieldGuns.get(0).getName());
+            txtGuns.setText(fieldGuns.getFirst().getName());
         }
 
         if (techManager.getTechLevel().ordinal() >= SimpleTechLevel.ADVANCED.ordinal()) {

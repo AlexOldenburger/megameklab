@@ -199,7 +199,7 @@ public class BMCriticalTransferHandler extends AbstractCriticalTransferHandler {
                 return false;
 
             } else if (secondLocationsList.size() == 1) {
-                secondLocation = secondLocationsList.get(0);
+                secondLocation = secondLocationsList.getFirst();
 
             } else {
                 Vector<String> locations = new Vector<>();
