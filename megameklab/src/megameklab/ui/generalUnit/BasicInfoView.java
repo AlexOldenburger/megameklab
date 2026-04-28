@@ -40,8 +40,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
-import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
@@ -102,7 +102,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     private static final int BASE_CLAN_MIXED = 3;
 
     private static final String SOURCE_TOOLTIP_TEMPLATE =
-          "<html>%s<hr>Product Code: %s<br>Saved to file as: %s</div></html>";
+            "%s<br>Product Code: %s<br>Saved to file as: %s";
 
     private String[] techBaseNames;
     private TechAdvancement baseTA;
@@ -133,7 +133,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
 
     private int prevYear = 3145;
     private int prevBuildYear = -1;
-    private String sourceAbbreviation;
+    private String sourceAbbreviation = "";
     // endregion Variable Declarations
 
     // region Constructors
@@ -244,7 +244,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         txtSource.setEditable(false);
         txtSource.setToolTipText(resourceMap.getString("BasicInfoView.txtSource.tooltip"));
         editSourceButton.addActionListener(e -> {
-            String result = SourceChooserDialog.showChoiceDialog(getRootPane(), true);
+            String result = SourceChooserDialog.showMultiChoiceDialog(getRootPane(), true, sourceAbbreviation);
             if (result != null) {
                 setSource(result);
             }
@@ -450,23 +450,42 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     }
 
     public String getSource() {
-        return txtSource.getText();
+        return sourceAbbreviation;
     }
 
     public void setSource(String source) {
-        sourceAbbreviation = source;
-        // show the title of the book if available, otherwise show the given String
-        Optional<SourceBook> book = sourceBooks.loadSourceBook(source);
-        if (book.isPresent()) {
-            String tooltip = SOURCE_TOOLTIP_TEMPLATE
-                  .formatted(book.get().getTitle(), book.get().getSku(), book.get().getAbbrev());
-            txtSource.setToolTipText(tooltip);
-            txtSource.setText(book.get().getTitle());
-        } else {
-            txtSource.setText(source);
+        sourceAbbreviation = SourceBooks.normalizeSourceList(source);
+        List<String> sources = SourceBooks.splitSourceList(sourceAbbreviation);
+        if (sources.isEmpty()) {
+            txtSource.setText("");
             txtSource.setToolTipText(resourceMap.getString("BasicInfoView.txtSource.tooltip"));
+            sourceMulLinkButton.setEnabled(false);
+            listeners.forEach(l -> l.sourceChanged(sourceAbbreviation));
+            return;
         }
-        sourceMulLinkButton.setEnabled(sourceBooks.loadSourceBook(sourceAbbreviation).isPresent());
+
+        List<String> displaySources = new ArrayList<>();
+        List<String> sourceTooltips = new ArrayList<>();
+        for (String sourceName : sources) {
+            Optional<SourceBook> book = sourceBooks.loadSourceBook(sourceName);
+            if (book.isPresent()) {
+                SourceBook sourceBook = book.get();
+                String title = (sourceBook.getTitle() == null) ? sourceName : sourceBook.getTitle();
+                displaySources.add(title);
+                String sku = (sourceBook.getSku() == null) ? "" : sourceBook.getSku();
+                String abbrev = (sourceBook.getAbbrev() == null) ? sourceName : sourceBook.getAbbrev();
+                sourceTooltips.add(SOURCE_TOOLTIP_TEMPLATE.formatted(title, sku, abbrev));
+            } else {
+                displaySources.add(sourceName);
+            }
+        }
+        txtSource.setText(String.join(", ", displaySources));
+        if (sourceTooltips.isEmpty()) {
+            txtSource.setToolTipText(resourceMap.getString("BasicInfoView.txtSource.tooltip"));
+        } else {
+            txtSource.setToolTipText("<html>%s</html>".formatted(String.join("<hr>", sourceTooltips)));
+        }
+        sourceMulLinkButton.setEnabled(shouldShowSourcebookMULButton());
         listeners.forEach(l -> l.sourceChanged(sourceAbbreviation));
     }
 
@@ -724,8 +743,27 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
      * @return true when the "Open MUL in Browser" Button can be used
      */
     private boolean shouldShowMULButton() {
-        return (txtMulId.getIntVal(-1) > 0) && Desktop.isDesktopSupported()
-              && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE);
+        return (txtMulId.getIntVal(-1) > 0) && canBrowseDesktop();
+    }
+
+    /**
+     * The sourcebook MUL button should be shown when any selected sourcebook has a MUL URL and the system seems to
+     * support calling a standard browser.
+     *
+     * @return true when the "Open Sourcebook MUL in Browser" Button can be used
+     */
+    private boolean shouldShowSourcebookMULButton() {
+        return canBrowseDesktop() && sourceBooks.loadSourceBooks(sourceAbbreviation)
+              .stream()
+              .anyMatch(sourceBook -> (sourceBook.getMul_url() != null) && !sourceBook.getMul_url().isBlank());
+    }
+
+    private boolean canBrowseDesktop() {
+        try {
+            return Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE);
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     /**
@@ -746,13 +784,15 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
      * Opens the Master Unit List sourcebook page in the System Standard Explorer, if possible.
      */
     private void openSourcebookMUL() {
-        sourceBooks.loadSourceBook(sourceAbbreviation).ifPresent(sourceBook -> {
+        for (SourceBook sourceBook : sourceBooks.loadSourceBooks(sourceAbbreviation)) {
             try {
-                Desktop.getDesktop().browse(URI.create(sourceBook.getMul_url()));
-            } catch (IOException ex) {
+                if ((sourceBook.getMul_url() != null) && !sourceBook.getMul_url().isBlank()) {
+                    Desktop.getDesktop().browse(URI.create(sourceBook.getMul_url()));
+                }
+            } catch (Exception ex) {
                 LOGGER.error("", ex);
                 JOptionPane.showMessageDialog(this, ex.getMessage(), "ERROR", JOptionPane.ERROR_MESSAGE);
             }
-        });
+        }
     }
 }
