@@ -33,7 +33,6 @@
 
 package megameklab.printing;
 
-import java.awt.GridBagConstraints;
 import java.awt.print.PageFormat;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -44,10 +43,7 @@ import java.lang.System;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.NumberFormat;
-import java.util.Calendar;
 import java.util.*;
-import javax.swing.JLabel;
-import javax.swing.JTextField;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -59,10 +55,8 @@ import javax.xml.transform.stream.StreamResult;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import megamek.MMConstants;
 import megamek.client.ratgenerator.RATGenerator;
 import megamek.client.ui.Messages;
@@ -80,14 +74,10 @@ import megamek.common.bays.BattleArmorBay;
 import megamek.common.bays.Bay;
 import megamek.common.bays.InfantryBay;
 import megamek.common.bays.ProtoMekBay;
-import megamek.common.enums.TechBase;
 import megamek.common.equipment.*;
-import megamek.common.equipment.enums.AmmoTypeFlag;
 import megamek.common.equipment.enums.MiscTypeFlag;
 import megamek.common.loaders.MekSummary;
 import megamek.common.loaders.MekSummaryCache;
-import megamek.common.loaders.MtfFile;
-import megamek.common.templates.CapitalShipTROView;
 import megamek.common.units.*;
 import megamek.common.actions.ClubAttackAction;
 import megamek.common.actions.KickAttackAction;
@@ -101,7 +91,6 @@ import megamek.common.options.IOptionGroup;
 import megamek.common.options.OptionsConstants;
 import megamek.common.options.Quirks;
 import megamek.common.verifier.TestProtoMek;
-import megamek.common.weapons.autoCannons.ACWeapon;
 import megamek.common.weapons.autoCannons.RACWeapon;
 import megamek.common.weapons.autoCannons.UACWeapon;
 import megamek.common.weapons.bayWeapons.BayWeapon;
@@ -112,19 +101,15 @@ import megamek.common.weapons.missiles.MMLWeapon;
 import megamek.common.weapons.missiles.MissileWeapon;
 import megamek.common.weapons.missiles.thunderbolt.ThunderboltWeapon;
 import megamek.common.weapons.mortars.MekMortarWeapon;
-import megamek.common.weapons.other.clan.CLFussilade;
 import megamek.common.weapons.srms.SRMWeapon;
 import megamek.common.weapons.srms.SRTWeapon;
 import megamek.logging.MMLogger;
 import megameklab.MMLOptions;
 import megameklab.ui.util.EquipmentDatabaseCategory;
-import megameklab.ui.util.EquipmentTableModel;
 import megameklab.util.CConfig;
 import megameklab.util.SVGOptimizer;
 import megameklab.util.UnitPrintManager;
 import megameklab.util.UnitUtil;
-import org.apache.batik.util.SVGConstants;
-import org.apache.fop.pdf.StructureType;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -134,8 +119,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
-import java.util.Set;
-import java.util.HashSet;
 
 import static megamek.common.equipment.EquipmentType.T_ARMOR_BA_STANDARD;
 import static megamek.common.equipment.EquipmentType.T_ARMOR_STANDARD;
@@ -151,10 +134,10 @@ import static megamek.common.equipment.WeaponType.DAMAGE_VARIABLE;
  */
 public class SVGMassPrinter {
     static ResourceBundle resourcesTabs = ResourceBundle.getBundle("megameklab.resources.Tabs");
-    private final static boolean SKIP_SVG = true; // Set to true to skip SVG generation
+    private final static boolean SKIP_SVG = false; // Set to true to skip SVG generation
     private final static boolean SKIP_UNITS = false; // Set to true to skip units generation
     private final static boolean SKIP_EQUIPMENT = false; // Set to true to skip equipment generation
-    private final static boolean SKIP_UNIT_FILES = false; // Set to true to skip BLK/MTF re-save generation
+    private final static boolean SKIP_UNIT_FILES = true; // Set to true to skip BLK/MTF re-save generation
 
     private static final MMLogger logger = MMLogger.create(SVGMassPrinter.class);
     private static final int SUSTAINED_TURNS = 10; // Number of turns for sustained DPT calculation
@@ -543,8 +526,7 @@ public class SVGMassPrinter {
                 if (m.isWeaponGroup()) {
                     continue;
                 }
-                if ((m.getType() instanceof AmmoType ammo) && (((AmmoType) m.getType()).getAmmoType()
-                      != AmmoType.AmmoTypeEnum.COOLANT_POD)) {
+                if (m.getType() instanceof AmmoType ammo) { // Includes Coolant Pods since they are technically ammo
                     addAmmoEntry(list, entity, (AmmoMounted) m, ammo, entity.joinLocationAbbr(m.allLocations(), 2),
                           m.getLocation());
                     continue;
@@ -756,6 +738,8 @@ public class SVGMassPrinter {
         public int internal; // Total internal structure
         public int heat; // Total heat generation
         public int dissipation; // Heat capacity
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        public int[] diss; // Max Dissipation
         public int engineHS; // Number of engine-integrated (critical-free) heat sinks
         public String engineHSType; // Type of heat sink (e.g. "Single", "Double", "Compact", etc.)
         public String moveType; // Movement type
@@ -1165,6 +1149,7 @@ public class SVGMassPrinter {
             if (entity.tracksHeat()) {
                 this.heat = UnitUtil.getTotalHeatGeneration(entity);
                 this.dissipation = entity.getHeatCapacity();
+                this.diss = new int[]{ entity.getHeatCapacity(false), getMaxHeatDissipation(entity) };
                 this.engineHSType = getHeatSinkTypeName(entity);
                 if (entity instanceof Mek mek) {
                     // this.engineHS = UnitUtil.getCriticalFreeHeatSinks(mek, mek.hasCompactHeatSinks());
@@ -1435,6 +1420,41 @@ public class SVGMassPrinter {
                 totalDPT += damage * damageModifier * fireFraction;
             }
             return totalDPT;
+        }
+
+        public int getMaxHeatDissipation(Entity entity) {
+            int sinks;
+
+            if (entity instanceof Mek mek) {
+                sinks = mek.getActiveSinks();
+            } else if (entity instanceof Aero aero) {
+                sinks = aero.getHeatSinks();
+            } else {
+                return 0;
+            }
+
+            int capacity = entity.getHeatCapacity(false);
+
+            // Radical Heat Sinks
+            if (entity.hasWorkingMisc(MiscType.F_RADICAL_HEATSINK)) {
+                capacity += sinks;
+            }
+
+            // Coolant Pod
+            for (AmmoMounted ammoMounted : entity.getAmmo()) {
+                if (ammoMounted.getType().getAmmoType() == AmmoType.AmmoTypeEnum.COOLANT_POD) {
+                    capacity += sinks;
+                    break;
+                }
+            }
+
+            // RISC ECS
+            for (MiscMounted miscMounted : entity.getMisc()) {
+                if (miscMounted.getType().hasFlag(MiscType.F_EMERGENCY_COOLANT_SYSTEM)) {
+                    capacity += 6;
+                }
+            }
+            return capacity;
         }
 
         /**
