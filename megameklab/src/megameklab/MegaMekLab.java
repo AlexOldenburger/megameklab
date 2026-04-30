@@ -75,6 +75,7 @@ public class MegaMekLab {
     private static boolean noStartup;
 
     public static void main(String... args) {
+        MegaMek.setOriginProject(MMLConstants.PROJECT_NAME);
         boolean multiInstanceMode = hasArgument(args, "--multi");
         noStartup = hasArgument(args, "--no-startup");
         // Filter out already read args

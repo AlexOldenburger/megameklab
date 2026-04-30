@@ -32,7 +32,7 @@
  */
 package megameklab.ui;
 
-import java.awt.Component;
+import java.awt.Desktop;
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.ClipboardOwner;
@@ -49,8 +49,9 @@ import javax.swing.*;
 import javax.swing.UIManager.LookAndFeelInfo;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import megamek.client.ui.CopySystemDataAction;
+import megamek.client.ui.ShowBugReportDialogAction;
 import megamek.client.ui.clientGUI.GUIPreferences;
-import megamek.client.ui.dialogs.LicensingDialog;
 import megamek.client.ui.dialogs.UnitLoadingDialog;
 import megamek.client.ui.dialogs.abstractDialogs.BVDisplayDialog;
 import megamek.client.ui.dialogs.abstractDialogs.CostDisplayDialog;
@@ -1139,17 +1140,43 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         miResetWindowPos.addActionListener(evt -> CConfig.resetWindowPositions());
         helpMenu.add(miResetWindowPos);
 
-        final JMenuItem miAbout = new JMenuItem(resources.getString("miAbout.text"));
-        miAbout.setName("miAbout");
-        miAbout.setMnemonic(KeyEvent.VK_A);
-        miAbout.addActionListener(evt -> aboutAction());
-        helpMenu.add(miAbout);
+        // On Mac, handle the auto-added MegaMekLab menu items
+        if (Desktop.isDesktopSupported()) {
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.APP_ABOUT)) {
+                desktop.setAboutHandler(ev -> aboutAction());
+            }
+            if (desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
+                desktop.setQuitHandler((e, response) -> {
+                    boolean canQuit = owner.exit();
+                    if (canQuit) {
+                        response.performQuit();
+                    } else {
+                        response.cancelQuit();
+                    }
+                });
+            }
+        }
 
         final JMenuItem miRecordSheetImages = new JMenuItem(resources.getString("miRecordSheetImages.text"));
         miRecordSheetImages.setName("miRecordSheetImages");
         miRecordSheetImages.setMnemonic(KeyEvent.VK_R);
         miRecordSheetImages.addActionListener(evt -> recordSheetImagesAction());
         helpMenu.add(miRecordSheetImages);
+
+        helpMenu.addSeparator();
+
+        CopySystemDataAction copySystemDataAction = new CopySystemDataAction(MMLConstants.PROJECT_NAME);
+        helpMenu.add(new ShowBugReportDialogAction(owner.getFrame(), copySystemDataAction));
+        helpMenu.add(copySystemDataAction);
+
+        helpMenu.addSeparator();
+
+        final JMenuItem miAbout = new JMenuItem(resources.getString("miAbout.text"));
+        miAbout.setName("miAbout");
+        miAbout.setMnemonic(KeyEvent.VK_A);
+        miAbout.addActionListener(evt -> aboutAction());
+        helpMenu.add(miAbout);
 
         return helpMenu;
     }
@@ -1284,46 +1311,7 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
 
     // Show data about MegaMekLab
     private void aboutAction() {
-        JDialog dlg = new JDialog(owner.getFrame(), resources.getString("menu.help.about.title"));
-
-        JPanel child = new JPanel();
-        child.setLayout(new BoxLayout(child, BoxLayout.Y_AXIS));
-        child.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        JLabel version = new JLabel(String.format(resources.getString("menu.help.about.version.format"),
-              MMLConstants.VERSION));
-        version.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JEditorPane body = new JEditorPane();
-        body.setContentType("text/html");
-        body.setEditable(false);
-        body.setOpaque(false);
-        body.setText(buildAboutHtml());
-        body.setCaretPosition(0);
-        body.setAlignmentX(Component.CENTER_ALIGNMENT);
-        body.addHyperlinkListener(e -> {
-            if (e.getEventType() == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
-                UIUtil.browse(e.getURL().toString(), owner.getFrame());
-            }
-        });
-
-        child.add(new JLabel("\n"));
-        child.add(version);
-        child.add(new JLabel("\n"));
-        child.add(body);
-
-        dlg.getContentPane().add(child);
-        dlg.setLocationRelativeTo(owner.getFrame());
-        dlg.setModal(true);
-        dlg.setResizable(false);
-        dlg.pack();
-        dlg.setVisible(true);
-    }
-
-    private static String buildAboutHtml() {
-        return "<html><body width='" + UIUtil.scaleForGUI(500) + "'>"
-              + LicensingDialog.buildLegalHtml()
-              + "</body></html>";
+        new MMLAboutDialog(owner.getFrame()).show();
     }
 
     // Show how to create fluff images for Record Sheets
