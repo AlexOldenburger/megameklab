@@ -145,7 +145,6 @@ public class SVGMassPrinter {
     private static final String SHEETS_DIR = "sheets";
     private static final String UNIT_FILES_DIR = "unitfiles";
     private static final String UNIT_FILE = "units.json";
-    private static final String EQUIPMENT_FILE_OLD = "equipmentOld.json";
     private static final String EQUIPMENT_FILE = "equipment2.json";
     private static final String ROOT_FOLDER = "../../svgexport";
         private static final String LICENSE_HEADER = """
@@ -736,6 +735,10 @@ public class SVGMassPrinter {
         public int armor; // Total armor
         public double armorPer; // Armor %
         public int internal; // Total internal structure
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        public int squads;
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        public int squadSize;
         public int heat; // Total heat generation
         public int dissipation; // Heat capacity
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -1145,6 +1148,10 @@ public class SVGMassPrinter {
                 this.internal = aero.getOSI();
             } else {
                 this.internal = entity.getTotalInternal();
+            }
+            if (entity instanceof Infantry inf) {
+                this.squads = inf.getSquadCount();
+                this.squadSize = inf.getSquadSize();
             }
             if (entity.tracksHeat()) {
                 this.heat = UnitUtil.getTotalHeatGeneration(entity);
