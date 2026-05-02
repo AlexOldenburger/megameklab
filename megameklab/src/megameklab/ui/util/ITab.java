@@ -96,7 +96,7 @@ public class ITab extends JPanel {
 
     public void buildYearChanged(int buildYear) {
         Entity entity = getEntity();
-        entity.setOriginalBuildYear((buildYear < 0) ? entity.getYear() : buildYear);
+        entity.setOriginalBuildYear((buildYear <= 0) ? entity.getYear() : buildYear);
         if (this instanceof BuildListener buildListener) {
             buildListener.updateTechLevel();
         }
