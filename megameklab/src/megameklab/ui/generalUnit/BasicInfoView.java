@@ -190,7 +190,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         gbc.gridx = 1;
         txtModel.setToolTipText(resourceMap.getString("BasicInfoView.txtModel.tooltip"));
         modelPanel.add(txtModel);
-        lblNonCanonSource.setText(resourceMap.getString("BasicInfoView.notCanon.text"));
+        lblNonCanonSource.setText(resourceMap.getString("BasicInfoView.noncanon.text"));
         lblNonCanonSource.setForeground(Color.YELLOW);
         add(modelPanel, gbc);
         txtModel.addFocusListener(this);
@@ -551,7 +551,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     }
 
     private void updateNonCanonSourceLabel() {
-        boolean showNonCanonSource = hasNonCanonSourceBook(sourceAbbreviation, publishedAbbreviation);
+        boolean showNonCanonSource = Entity.isNonCanonBySource(sourceAbbreviation, publishedAbbreviation);
         if (showNonCanonSource && (lblNonCanonSource.getParent() == null)) {
             modelPanel.add(nonCanonSourceGap);
             modelPanel.add(lblNonCanonSource);
@@ -561,15 +561,6 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         }
         modelPanel.revalidate();
         modelPanel.repaint();
-    }
-
-    private boolean hasNonCanonSourceBook(String... sourceLists) {
-        for (String sourceList : sourceLists) {
-            if (sourceBooks.loadSourceBooks(sourceList).stream().anyMatch(sourceBook -> !sourceBook.isCanon())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
