@@ -492,6 +492,16 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         return getTechIntroYear();
     }
 
+    @Override
+    public List<Integer> getTechAvailabilityYears() {
+        int gameYear = getGameYear();
+        int buildYear = getBuildYear();
+        if ((buildYear > 0) && (buildYear != gameYear)) {
+            return List.of(gameYear, buildYear);
+        }
+        return List.of(gameYear);
+    }
+
     public String getSource() {
         return sourceAbbreviation;
     }

@@ -194,15 +194,7 @@ public class HHWMainUI extends MegaMekLabMainUI {
             newUnit.setModel("Handheld Weapon");
             newUnit.setYear(3145);
         } else {
-            newUnit.setChassis(oldUnit.getChassis());
-            newUnit.setModel(oldUnit.getModel());
-            newUnit.setYear(Math.max(oldUnit.getYear(),
-                  newUnit.getConstructionTechAdvancement().getIntroductionDate()));
-            newUnit.setSource(oldUnit.getSource());
-            newUnit.setPublished(oldUnit.getPublished());
-            newUnit.setManualBV(oldUnit.getManualBV());
-            newUnit.setTechLevel(oldUnit.getTechLevel());
-            newUnit.setMixedTech(oldUnit.isMixedTech());
+            copyUnitBasics(newUnit, oldUnit);
         }
         setEntity(newUnit, "");
         forceDirtyUntilNextSave();
