@@ -190,7 +190,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         gbc.gridx = 1;
         txtModel.setToolTipText(resourceMap.getString("BasicInfoView.txtModel.tooltip"));
         modelPanel.add(txtModel);
-        lblNonCanonSource.setText(resourceMap.getString("BasicInfoView.nonCanon.text"));
+        lblNonCanonSource.setText(resourceMap.getString("BasicInfoView.notCanon.text"));
         lblNonCanonSource.setForeground(Color.YELLOW);
         add(modelPanel, gbc);
         txtModel.addFocusListener(this);
