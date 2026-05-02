@@ -184,6 +184,7 @@ public class WSMainUI extends MegaMekLabMainUI {
             newUnit.setYear(Math.max(oldUnit.getYear(),
                   newUnit.getConstructionTechAdvancement().getIntroductionDate()));
             newUnit.setSource(oldUnit.getSource());
+            newUnit.setPublished(oldUnit.getPublished());
             newUnit.setManualBV(oldUnit.getManualBV());
             SimpleTechLevel lvl = SimpleTechLevel.max(newUnit.getStaticTechLevel(),
                   SimpleTechLevel.convertCompoundToSimple(oldUnit.getTechLevel()));

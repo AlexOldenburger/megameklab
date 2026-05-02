@@ -301,6 +301,13 @@ public class WSStructureTab extends ITab implements AdvancedAeroBuildListener, A
     }
 
     @Override
+    public void publishedChanged(String published) {
+        getJumpship().setPublished(published);
+        refresh.refreshSummary();
+        refresh.refreshPreview();
+    }
+
+    @Override
     public void factionChanged(Faction faction) {
         getEntity().setTechFaction(faction);
     }

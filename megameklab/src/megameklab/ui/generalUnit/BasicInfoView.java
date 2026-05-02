@@ -32,6 +32,7 @@
  */
 package megameklab.ui.generalUnit;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.GridBagConstraints;
@@ -40,6 +41,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,10 +53,13 @@ import javax.swing.Box;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.ListSelectionModel;
 
 import megamek.MMConstants;
 import megamek.client.ui.baseComponents.BooksIcon;
@@ -120,6 +126,11 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     private final JLabel lblFaction = createLabel("lblFaction", "");
     private final DisplayTextField txtSource = new DisplayTextField(15);
     private final JButton sourceMulLinkButton = new JButton(new MulLinkIcon());
+    private final DisplayTextField txtPublished = new DisplayTextField(15);
+    private final JButton publishedMulLinkButton = new JButton(new MulLinkIcon());
+    private final JLabel lblNonCanonSource = createLabel("lblNonCanonSource", "");
+    private final Box modelPanel = Box.createHorizontalBox();
+    private final Component nonCanonSourceGap = Box.createHorizontalStrut(4);
     private final CustomComboBox<Integer> cbTechBase = new CustomComboBox<>(i -> String.valueOf(techBaseNames[i]));
     private final JComboBox<String> cbTechLevel = new JComboBox<>();
     private final IntRangeTextField txtManualBV = new IntRangeTextField(3);
@@ -134,6 +145,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     private int prevYear = 3145;
     private int prevBuildYear = -1;
     private String sourceAbbreviation = "";
+    private String publishedAbbreviation = "";
     // endregion Variable Declarations
 
     // region Constructors
@@ -177,7 +189,10 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
               "BasicInfoView.txtModel.tooltip"), gbc);
         gbc.gridx = 1;
         txtModel.setToolTipText(resourceMap.getString("BasicInfoView.txtModel.tooltip"));
-        add(txtModel, gbc);
+        modelPanel.add(txtModel);
+        lblNonCanonSource.setText(resourceMap.getString("BasicInfoView.nonCanon.text"));
+        lblNonCanonSource.setForeground(Color.YELLOW);
+        add(modelPanel, gbc);
         txtModel.addFocusListener(this);
 
         gbc.gridx = 0;
@@ -238,7 +253,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         sourcePanel.add(editSourceButton);
         editSourceButton.setToolTipText(resourceMap.getString("BasicInfoView.configSource.tooltip"));
         sourceMulLinkButton.setToolTipText(resourceMap.getString("BasicInfoView.browseSourcebook.tooltip"));
-        sourceMulLinkButton.addActionListener(e -> openSourcebookMUL());
+        sourceMulLinkButton.addActionListener(e -> openSourcebookMUL(sourceAbbreviation));
         sourcePanel.add(sourceMulLinkButton);
         add(sourcePanel, gbc);
         txtSource.setEditable(false);
@@ -247,6 +262,33 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
             String result = SourceChooserDialog.showMultiChoiceDialog(getRootPane(), true, sourceAbbreviation);
             if (result != null) {
                 setSource(result);
+            }
+        });
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        add(createLabel(resourceMap, "lblPublished", "BasicInfoView.txtPublished.text",
+              "BasicInfoView.txtPublished.tooltip"), gbc);
+        gbc.gridx = 1;
+        var publishedPanel = Box.createHorizontalBox();
+        publishedPanel.add(txtPublished);
+        var clearPublishedButton = new JButton(new DeleteIcon());
+        clearPublishedButton.setToolTipText(resourceMap.getString("BasicInfoView.deletePublished.tooltip"));
+        clearPublishedButton.addActionListener(e -> setPublished(""));
+        publishedPanel.add(clearPublishedButton);
+        var editPublishedButton = new JButton(new BooksIcon());
+        publishedPanel.add(editPublishedButton);
+        editPublishedButton.setToolTipText(resourceMap.getString("BasicInfoView.configPublished.tooltip"));
+        publishedMulLinkButton.setToolTipText(resourceMap.getString("BasicInfoView.browseSourcebook.tooltip"));
+        publishedMulLinkButton.addActionListener(e -> openSourcebookMUL(publishedAbbreviation));
+        publishedPanel.add(publishedMulLinkButton);
+        add(publishedPanel, gbc);
+        txtPublished.setEditable(false);
+        txtPublished.setToolTipText(resourceMap.getString("BasicInfoView.txtPublished.tooltip"));
+        editPublishedButton.addActionListener(e -> {
+            String result = SourceChooserDialog.showMultiChoiceDialog(getRootPane(), true, publishedAbbreviation);
+            if (result != null) {
+                setPublished(result);
             }
         });
 
@@ -322,6 +364,7 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
         setYear(Math.max(en.getYear(), txtYear.getMinimum()));
         setBuildYear(en.getOriginalBuildYear(), en.getYear());
         setSource(en.getSource());
+        setPublished(en.getPublished());
         cbTechBase.removeActionListener(this);
         setTechBase(en.isClan(), en.isMixedTech());
         cbTechBase.addActionListener(this);
@@ -455,12 +498,31 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
 
     public void setSource(String source) {
         sourceAbbreviation = SourceBooks.normalizeSourceList(source);
-        List<String> sources = SourceBooks.splitSourceList(sourceAbbreviation);
+        updateSourcebookControls(txtSource, sourceMulLinkButton, sourceAbbreviation,
+              "BasicInfoView.txtSource.tooltip");
+        updateNonCanonSourceLabel();
+        listeners.forEach(l -> l.sourceChanged(sourceAbbreviation));
+    }
+
+    public String getPublished() {
+        return publishedAbbreviation;
+    }
+
+    public void setPublished(String published) {
+        publishedAbbreviation = SourceBooks.normalizeSourceList(published);
+        updateSourcebookControls(txtPublished, publishedMulLinkButton, publishedAbbreviation,
+              "BasicInfoView.txtPublished.tooltip");
+        updateNonCanonSourceLabel();
+        listeners.forEach(l -> l.publishedChanged(publishedAbbreviation));
+    }
+
+    private void updateSourcebookControls(DisplayTextField textField, JButton mulLinkButton, String sourceList,
+          String defaultTooltipKey) {
+        List<String> sources = SourceBooks.splitSourceList(sourceList);
         if (sources.isEmpty()) {
-            txtSource.setText("");
-            txtSource.setToolTipText(resourceMap.getString("BasicInfoView.txtSource.tooltip"));
-            sourceMulLinkButton.setEnabled(false);
-            listeners.forEach(l -> l.sourceChanged(sourceAbbreviation));
+            textField.setText("");
+            textField.setToolTipText(resourceMap.getString(defaultTooltipKey));
+            mulLinkButton.setEnabled(false);
             return;
         }
 
@@ -479,14 +541,35 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
                 displaySources.add(sourceName);
             }
         }
-        txtSource.setText(String.join(", ", displaySources));
+        textField.setText(String.join(", ", displaySources));
         if (sourceTooltips.isEmpty()) {
-            txtSource.setToolTipText(resourceMap.getString("BasicInfoView.txtSource.tooltip"));
+            textField.setToolTipText(resourceMap.getString(defaultTooltipKey));
         } else {
-            txtSource.setToolTipText("<html>%s</html>".formatted(String.join("<hr>", sourceTooltips)));
+            textField.setToolTipText("<html>%s</html>".formatted(String.join("<hr>", sourceTooltips)));
         }
-        sourceMulLinkButton.setEnabled(shouldShowSourcebookMULButton());
-        listeners.forEach(l -> l.sourceChanged(sourceAbbreviation));
+        mulLinkButton.setEnabled(shouldShowSourcebookMULButton(sourceList));
+    }
+
+    private void updateNonCanonSourceLabel() {
+        boolean showNonCanonSource = hasNonCanonSourceBook(sourceAbbreviation, publishedAbbreviation);
+        if (showNonCanonSource && (lblNonCanonSource.getParent() == null)) {
+            modelPanel.add(nonCanonSourceGap);
+            modelPanel.add(lblNonCanonSource);
+        } else if (!showNonCanonSource && (lblNonCanonSource.getParent() == modelPanel)) {
+            modelPanel.remove(lblNonCanonSource);
+            modelPanel.remove(nonCanonSourceGap);
+        }
+        modelPanel.revalidate();
+        modelPanel.repaint();
+    }
+
+    private boolean hasNonCanonSourceBook(String... sourceLists) {
+        for (String sourceList : sourceLists) {
+            if (sourceBooks.loadSourceBooks(sourceList).stream().anyMatch(sourceBook -> !sourceBook.isCanon())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -752,10 +835,10 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
      *
      * @return true when the "Open Sourcebook MUL in Browser" Button can be used
      */
-    private boolean shouldShowSourcebookMULButton() {
-        return canBrowseDesktop() && sourceBooks.loadSourceBooks(sourceAbbreviation)
+    private boolean shouldShowSourcebookMULButton(String sourceList) {
+        return canBrowseDesktop() && sourceBooks.loadSourceBooks(sourceList)
               .stream()
-              .anyMatch(sourceBook -> (sourceBook.getMul_url() != null) && !sourceBook.getMul_url().isBlank());
+              .anyMatch(BasicInfoView::hasMulUrl);
     }
 
     private boolean canBrowseDesktop() {
@@ -783,16 +866,80 @@ public class BasicInfoView extends BuildView implements ITechManager, ActionList
     /**
      * Opens the Master Unit List sourcebook page in the System Standard Explorer, if possible.
      */
-    private void openSourcebookMUL() {
-        for (SourceBook sourceBook : sourceBooks.loadSourceBooks(sourceAbbreviation)) {
-            try {
-                if ((sourceBook.getMul_url() != null) && !sourceBook.getMul_url().isBlank()) {
-                    Desktop.getDesktop().browse(URI.create(sourceBook.getMul_url()));
-                }
-            } catch (Exception ex) {
-                LOGGER.error("", ex);
-                JOptionPane.showMessageDialog(this, ex.getMessage(), "ERROR", JOptionPane.ERROR_MESSAGE);
-            }
+    private void openSourcebookMUL(String sourceList) {
+        List<SourceBook> sourcebooksWithMul = sourceBooks.loadSourceBooks(sourceList)
+              .stream()
+              .filter(BasicInfoView::hasMulUrl)
+              .toList();
+        if (sourcebooksWithMul.isEmpty()) {
+            return;
         }
+
+        SourceBook sourceBook = (sourcebooksWithMul.size() == 1)
+              ? sourcebooksWithMul.get(0)
+              : chooseSourcebookMUL(sourcebooksWithMul).orElse(null);
+        if (sourceBook != null) {
+            openSourcebookMUL(sourceBook);
+        }
+    }
+
+    private Optional<SourceBook> chooseSourcebookMUL(List<SourceBook> sourcebooksWithMul) {
+        JList<SourceBook> sourceBookList = new JList<>(sourcebooksWithMul.toArray(SourceBook[]::new));
+        sourceBookList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        sourceBookList.setSelectedIndex(0);
+        sourceBookList.setVisibleRowCount(Math.min(sourcebooksWithMul.size(), 8));
+        sourceBookList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
+                  boolean cellHasFocus) {
+                if (value instanceof SourceBook sourceBook) {
+                    value = sourcebookDisplayName(sourceBook);
+                }
+                return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            }
+        });
+
+        JScrollPane scrollPane = new JScrollPane(sourceBookList);
+        JOptionPane optionPane = new JOptionPane(scrollPane, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION);
+        JDialog dialog = optionPane.createDialog(this, "Open Sourcebook MUL");
+        sourceBookList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent event) {
+                if ((event.getClickCount() == 2) && (sourceBookList.locationToIndex(event.getPoint()) >= 0)) {
+                    optionPane.setValue(JOptionPane.OK_OPTION);
+                    dialog.setVisible(false);
+                }
+            }
+        });
+        dialog.setVisible(true);
+
+        Object value = optionPane.getValue();
+        if (value instanceof Integer selectedValue && selectedValue == JOptionPane.OK_OPTION) {
+            return Optional.ofNullable(sourceBookList.getSelectedValue());
+        }
+        return Optional.empty();
+    }
+
+    private void openSourcebookMUL(SourceBook sourceBook) {
+        try {
+            Desktop.getDesktop().browse(URI.create(sourceBook.getMul_url()));
+        } catch (Exception ex) {
+            LOGGER.error("", ex);
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "ERROR", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private static boolean hasMulUrl(SourceBook sourceBook) {
+        return (sourceBook.getMul_url() != null) && !sourceBook.getMul_url().isBlank();
+    }
+
+    private static String sourcebookDisplayName(SourceBook sourceBook) {
+        String abbrev = (sourceBook.getAbbrev() == null || sourceBook.getAbbrev().isBlank())
+              ? sourceBook.getMul_url()
+              : sourceBook.getAbbrev();
+        String title = (sourceBook.getTitle() == null || sourceBook.getTitle().isBlank())
+              ? abbrev
+              : sourceBook.getTitle();
+        return title.equals(abbrev) ? title : "%s (%s)".formatted(title, abbrev);
     }
 }

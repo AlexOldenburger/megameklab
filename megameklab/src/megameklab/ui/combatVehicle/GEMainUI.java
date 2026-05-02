@@ -204,6 +204,7 @@ public class GEMainUI extends MegaMekLabMainUI {
             newUnit.setYear(Math.max(oldUnit.getYear(),
                   newUnit.getConstructionTechAdvancement().getIntroductionDate()));
             newUnit.setSource(oldUnit.getSource());
+            newUnit.setPublished(oldUnit.getPublished());
             newUnit.setManualBV(oldUnit.getManualBV());
             newUnit.setTechLevel(oldUnit.getTechLevel());
             newUnit.setMixedTech(oldUnit.isMixedTech());

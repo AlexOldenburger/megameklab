@@ -64,6 +64,9 @@ public interface BuildListener {
 
     void sourceChanged(String source);
 
+    default void publishedChanged(String published) {
+    }
+
     void mulIdChanged(int mulId);
 
     void techBaseChanged(boolean clan, boolean mixed);

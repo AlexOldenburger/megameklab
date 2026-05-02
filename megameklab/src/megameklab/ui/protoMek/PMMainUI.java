@@ -150,6 +150,7 @@ public class PMMainUI extends MegaMekLabMainUI {
             newUnit.setYear(Math.max(oldEntity.getYear(),
                   newUnit.getConstructionTechAdvancement().getIntroductionDate()));
             newUnit.setSource(oldEntity.getSource());
+            newUnit.setPublished(oldEntity.getPublished());
             newUnit.setManualBV(oldEntity.getManualBV());
             SimpleTechLevel lvl = SimpleTechLevel.max(newUnit.getStaticTechLevel(),
                   SimpleTechLevel.convertCompoundToSimple(oldEntity.getTechLevel()));
