@@ -49,6 +49,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JButton;
@@ -471,6 +472,24 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
             return null;
         }
 
+        String savedSourcebookKey = sourceBooks.sourceBookKey(sourcebookKey);
+        if (sourcebookKeyExistsForAnotherSourcebook(savedSourcebookKey)) {
+            JOptionPane.showMessageDialog(this,
+                  "A sourcebook file named \"" + savedSourcebookKey + "\" already exists. Choose a different file name.",
+                  "Sourcebooks",
+                  JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+
+        String abbrev = txtAbbrev.getText().trim();
+        if (abbrevExistsForAnotherSourcebook(abbrev)) {
+            JOptionPane.showMessageDialog(this,
+                  "The abbrev \"" + abbrev + "\" is already used by another sourcebook. Choose a unique abbrev.",
+                  "Sourcebooks",
+                  JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+
         SourceBook sourceBook = new SourceBook();
         try {
             sourceBook.setId(txtId.getText().trim().isEmpty() ? 0 : Integer.parseInt(txtId.getText().trim()));
@@ -488,7 +507,6 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         sourceBook.setDescription(blankToNull(txtDescription.getText()));
         sourceBook.setMul_url(blankToNull(txtMulUrl.getText()));
 
-        String savedSourcebookKey = sourceBooks.sourceBookKey(sourcebookKey);
         try {
             sourceBooks.saveSourceBook(savedSourcebookKey, sourceBook);
             return savedSourcebookKey;
@@ -497,6 +515,37 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
             JOptionPane.showMessageDialog(this, exception.getMessage(), "Sourcebooks", JOptionPane.ERROR_MESSAGE);
             return null;
         }
+    }
+
+    private boolean sourcebookKeyExistsForAnotherSourcebook(String candidateSourcebookKey) {
+        return sourceBooks.availableSourcebooks().stream()
+              .map(sourceBooks::sourceBookKey)
+              .anyMatch(existingSourcebookKey -> sameSourcebookKey(existingSourcebookKey, candidateSourcebookKey)
+                    && !sameSourcebookKey(existingSourcebookKey, savedSourcebookState.fileName()));
+    }
+
+    private boolean abbrevExistsForAnotherSourcebook(String candidateAbbrev) {
+        if (candidateAbbrev.isBlank()) {
+            return false;
+        }
+
+        return sourceBooks.availableSourcebooks().stream()
+              .filter(sourcebookKey -> !sameSourcebookKey(sourcebookKey, savedSourcebookState.fileName()))
+              .map(sourceBooks::loadSourceBook)
+              .flatMap(Optional::stream)
+              .map(SourceBook::getAbbrev)
+              .filter(Objects::nonNull)
+              .map(String::trim)
+              .anyMatch(existingAbbrev -> existingAbbrev.equalsIgnoreCase(candidateAbbrev));
+    }
+
+    private boolean sameSourcebookKey(String firstSourcebookKey, String secondSourcebookKey) {
+        if ((firstSourcebookKey == null) || firstSourcebookKey.isBlank()
+              || (secondSourcebookKey == null) || secondSourcebookKey.isBlank()) {
+            return false;
+        }
+        return sourceBooks.sourceBookKey(firstSourcebookKey)
+              .equalsIgnoreCase(sourceBooks.sourceBookKey(secondSourcebookKey));
     }
 
     private boolean confirmSaveDiscardOrCancel() {
