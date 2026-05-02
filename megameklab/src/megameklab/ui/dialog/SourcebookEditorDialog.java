@@ -40,6 +40,8 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -64,6 +66,7 @@ import javax.swing.ListSelectionModel;
 import javax.swing.RowFilter;
 import javax.swing.RowSorter;
 import javax.swing.SortOrder;
+import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
@@ -100,11 +103,14 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
     private final JCheckBox chkCanon = new JCheckBox("Canon");
     private final JTextField txtMulUrl = new JTextField();
     private final JTextArea txtDescription = new JTextArea(10, 42);
+    private SourcebookState savedSourcebookState = SourcebookState.empty();
+    private boolean updatingSelection = false;
 
     public SourcebookEditorDialog(JFrame frame) {
         super(frame, false, "SourcebookEditorDialog", "SourcebookEditorDialog.title");
         loadSourcebooks(null);
         initialize();
+        setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         selectFirstSourcebook();
     }
 
@@ -129,8 +135,8 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         sourcebookTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         configureSourcebookTableColumns();
         sourcebookTable.getSelectionModel().addListSelectionListener(event -> {
-            if (!event.getValueIsAdjusting()) {
-                loadSelectedSourcebook();
+            if (!event.getValueIsAdjusting() && !updatingSelection) {
+                selectedSourcebookChanged();
             }
         });
 
@@ -265,13 +271,13 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
 
     private JPanel createButtonPane() {
         JButton newButton = new JButton("New");
-        newButton.addActionListener(event -> newSourcebook());
+        newButton.addActionListener(event -> beginNewSourcebook());
 
         JButton saveButton = new JButton("Save");
         saveButton.addActionListener(event -> saveSourcebook());
 
         JButton closeButton = new JButton("Close");
-        closeButton.addActionListener(event -> setVisible(false));
+        closeButton.addActionListener(event -> closeDialog());
 
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         panel.add(newButton);
@@ -279,6 +285,22 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         panel.add(saveButton);
         panel.add(closeButton);
         return panel;
+    }
+
+    @Override
+    protected void cancelActionPerformed(ActionEvent event) {
+        closeDialog();
+    }
+
+    @Override
+    public void windowClosing(WindowEvent event) {
+        closeDialog();
+    }
+
+    private void closeDialog() {
+        if (confirmSaveDiscardOrCancel()) {
+            setVisible(false);
+        }
     }
 
     private void updateFilter() {
@@ -311,6 +333,20 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         }
     }
 
+    private void reloadSourcebooks(String selectedSourcebookKey) {
+        runWithoutSelectionEvents(() -> loadSourcebooks(selectedSourcebookKey));
+    }
+
+    private void runWithoutSelectionEvents(Runnable task) {
+        boolean wasUpdatingSelection = updatingSelection;
+        updatingSelection = true;
+        try {
+            task.run();
+        } finally {
+            updatingSelection = wasUpdatingSelection;
+        }
+    }
+
     private void selectFirstSourcebook() {
         if (sourcebookTable.getRowCount() > 0) {
             sourcebookTable.setRowSelectionInterval(0, 0);
@@ -330,6 +366,34 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
             }
         }
         return false;
+    }
+
+    private void selectedSourcebookChanged() {
+        int selectedRow = sourcebookTable.getSelectedRow();
+        if (selectedRow < 0) {
+            return;
+        }
+
+        SourcebookRow selectedSourcebook = sourcebookTableModel.getRow(sourcebookTable.convertRowIndexToModel(
+              selectedRow));
+        if (selectedSourcebook.fileName().equals(savedSourcebookState.fileName())) {
+            return;
+        }
+        if (!confirmSaveDiscardOrCancel()) {
+            restoreSourcebookSelection();
+            return;
+        }
+
+        reloadSourcebooks(selectedSourcebook.fileName());
+        loadSelectedSourcebook();
+    }
+
+    private void restoreSourcebookSelection() {
+        runWithoutSelectionEvents(() -> {
+            if (savedSourcebookState.fileName().isBlank() || !selectSourcebook(savedSourcebookState.fileName())) {
+                sourcebookTable.clearSelection();
+            }
+        });
     }
 
     private void loadSelectedSourcebook() {
@@ -352,10 +416,18 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         txtMulUrl.setText(text(sourceBook.getMul_url()));
         txtDescription.setText(text(sourceBook.getDescription()));
         txtDescription.setCaretPosition(0);
+        savedSourcebookState = currentSourcebookState();
+    }
+
+    private void beginNewSourcebook() {
+        if (confirmSaveDiscardOrCancel()) {
+            reloadSourcebooks(null);
+            newSourcebook();
+        }
     }
 
     private void newSourcebook() {
-        sourcebookTable.clearSelection();
+        runWithoutSelectionEvents(sourcebookTable::clearSelection);
         txtFileName.setText("");
         txtFileName.setEditable(true);
         txtId.setText("0");
@@ -368,9 +440,27 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         chkCanon.setSelected(true);
         txtMulUrl.setText("");
         txtDescription.setText("");
+        savedSourcebookState = currentSourcebookState();
     }
 
-    private void saveSourcebook() {
+    private boolean saveSourcebook() {
+        String savedSourcebookKey = saveSourcebookData();
+        if (savedSourcebookKey == null) {
+            return false;
+        }
+
+        reloadSourcebooks(savedSourcebookKey);
+        if ((sourcebookTable.getSelectedRow() < 0) && !txtFilter.getText().isBlank()) {
+            runWithoutSelectionEvents(() -> {
+                txtFilter.setText("");
+                loadSourcebooks(savedSourcebookKey);
+            });
+        }
+        loadSelectedSourcebook();
+        return true;
+    }
+
+    private String saveSourcebookData() {
         String sourcebookKey = txtFileName.getText().trim();
         if (sourcebookKey.isBlank()) {
             sourcebookKey = txtAbbrev.getText().trim();
@@ -378,7 +468,7 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         if (sourcebookKey.isBlank()) {
             JOptionPane.showMessageDialog(this, "File or abbrev is required.", "Sourcebooks",
                   JOptionPane.ERROR_MESSAGE);
-            return;
+            return null;
         }
 
         SourceBook sourceBook = new SourceBook();
@@ -386,7 +476,7 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
             sourceBook.setId(txtId.getText().trim().isEmpty() ? 0 : Integer.parseInt(txtId.getText().trim()));
         } catch (NumberFormatException exception) {
             JOptionPane.showMessageDialog(this, "MUL ID must be a number.", "Sourcebooks", JOptionPane.ERROR_MESSAGE);
-            return;
+            return null;
         }
         sourceBook.setSku(blankToNull(txtSku.getText()));
         sourceBook.setTitle(blankToNull(txtTitle.getText()));
@@ -401,24 +491,71 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         String savedSourcebookKey = sourceBooks.sourceBookKey(sourcebookKey);
         try {
             sourceBooks.saveSourceBook(savedSourcebookKey, sourceBook);
-            loadSourcebooks(savedSourcebookKey);
-            if ((sourcebookTable.getSelectedRow() < 0) && !txtFilter.getText().isBlank()) {
-                txtFilter.setText("");
-                loadSourcebooks(savedSourcebookKey);
-            }
+            return savedSourcebookKey;
         } catch (IOException exception) {
             LOGGER.error("", exception);
             JOptionPane.showMessageDialog(this, exception.getMessage(), "Sourcebooks", JOptionPane.ERROR_MESSAGE);
+            return null;
         }
+    }
+
+    private boolean confirmSaveDiscardOrCancel() {
+        if (!isDirty()) {
+            return true;
+        }
+
+        Object[] options = { "Save", "Discard", "Cancel" };
+        int choice = JOptionPane.showOptionDialog(this,
+              "Changes to the current sourcebook will be lost.\nSave before proceeding?",
+              "Unsaved Sourcebook Changes",
+              JOptionPane.YES_NO_CANCEL_OPTION,
+              JOptionPane.WARNING_MESSAGE,
+              null,
+              options,
+              options[0]);
+        return switch (choice) {
+            case 0 -> saveSourcebookData() != null;
+            case 1 -> true;
+            default -> false;
+        };
+    }
+
+    private boolean isDirty() {
+        return !currentSourcebookState().equals(savedSourcebookState);
+    }
+
+    private SourcebookState currentSourcebookState() {
+        return new SourcebookState(txtFileName.getText().trim(),
+              txtId.getText().trim(),
+              normalizedText(txtSku.getText()),
+              normalizedText(txtTitle.getText()),
+              normalizedText(txtAbbrev.getText()),
+              normalizedText(txtImage.getText()),
+              normalizedText(txtUrl.getText()),
+              chkIsPublished.isSelected(),
+              chkCanon.isSelected(),
+              normalizedText(txtMulUrl.getText()),
+              normalizedText(txtDescription.getText()));
     }
 
     private static String text(String value) {
         return Objects.requireNonNullElse(value, "");
     }
 
+    private static String normalizedText(String value) {
+        return text(value).trim();
+    }
+
     private static String blankToNull(String value) {
         String trimmedValue = value.trim();
         return trimmedValue.isBlank() ? null : trimmedValue;
+    }
+
+    private record SourcebookState(String fileName, String id, String sku, String title, String abbrev, String image,
+          String url, boolean isPublished, boolean canon, String mulUrl, String description) {
+        private static SourcebookState empty() {
+            return new SourcebookState("", "", "", "", "", "", "", false, false, "", "");
+        }
     }
 
     private record SourcebookRow(String fileName, SourceBook sourceBook) {
