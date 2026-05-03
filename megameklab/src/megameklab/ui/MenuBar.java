@@ -719,13 +719,15 @@ public class MenuBar extends JMenuBar implements ClipboardOwner {
         miRebuildUnitCache.addActionListener(evt -> rebuildUnitCache());
         databaseMenu.add(miRebuildUnitCache);
 
-        databaseMenu.addSeparator();
+        if (CConfig.includeLicense()) {
+            databaseMenu.addSeparator();
 
-        final JMenuItem miSourcebooks = new JMenuItem(resources.getString("miSourcebooks.text"));
-        miSourcebooks.setName("miSourcebooks");
-        miSourcebooks.setMnemonic(KeyEvent.VK_S);
-        miSourcebooks.addActionListener(evt -> new SourcebookEditorDialog(owner.getFrame()).setVisible(true));
-        databaseMenu.add(miSourcebooks);
+            final JMenuItem miSourcebooks = new JMenuItem(resources.getString("miSourcebooks.text"));
+            miSourcebooks.setName("miSourcebooks");
+            miSourcebooks.setMnemonic(KeyEvent.VK_S);
+            miSourcebooks.addActionListener(evt -> SourcebookEditorDialog.showDialog(owner.getFrame()));
+            databaseMenu.add(miSourcebooks);
+        }
 
         return databaseMenu;
     }

@@ -46,10 +46,16 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JButton;
@@ -67,6 +73,8 @@ import javax.swing.ListSelectionModel;
 import javax.swing.RowFilter;
 import javax.swing.RowSorter;
 import javax.swing.SortOrder;
+import javax.swing.SwingWorker;
+import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -75,6 +83,8 @@ import javax.swing.table.TableRowSorter;
 
 import megamek.common.SourceBook;
 import megamek.common.SourceBooks;
+import megamek.common.loaders.MekSummary;
+import megamek.common.loaders.MekSummaryCache;
 import megamek.logging.MMLogger;
 
 /**
@@ -87,6 +97,7 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
 
     private static final MMLogger LOGGER = MMLogger.create(SourcebookEditorDialog.class);
     private static final Insets FIELD_INSETS = new Insets(2, 2, 2, 2);
+    private static SourcebookEditorDialog sourcebookEditorDialog;
 
     private final SourceBooks sourceBooks = new SourceBooks();
     private final SourcebookTableModel sourcebookTableModel = new SourcebookTableModel();
@@ -104,10 +115,26 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
     private final JCheckBox chkCanon = new JCheckBox("Canon");
     private final JTextField txtMulUrl = new JTextField();
     private final JTextArea txtDescription = new JTextArea(10, 42);
+    private final JLabel lblValidationSummary = new JLabel();
+    private final JTextArea txtValidationLog = new JTextArea(6, 42);
+    private final JButton btnCheckUnitSources = new JButton("Check Unit Sources");
+    private final List<String> sourcebookValidationWarnings = new ArrayList<>();
+    private final List<String> unitSourceValidationWarnings = new ArrayList<>();
     private SourcebookState savedSourcebookState = SourcebookState.empty();
     private boolean updatingSelection = false;
+    private boolean unitSourceScanComplete = false;
+    private boolean unitSourceScanRunning = false;
 
-    public SourcebookEditorDialog(JFrame frame) {
+    public static void showDialog(JFrame frame) {
+        if ((sourcebookEditorDialog == null) || !sourcebookEditorDialog.isDisplayable()) {
+            sourcebookEditorDialog = new SourcebookEditorDialog(frame);
+        }
+        sourcebookEditorDialog.setVisible(true);
+        sourcebookEditorDialog.toFront();
+        sourcebookEditorDialog.requestFocus();
+    }
+
+    private SourcebookEditorDialog(JFrame frame) {
         super(frame, false, "SourcebookEditorDialog", "SourcebookEditorDialog.title");
         loadSourcebooks(null);
         initialize();
@@ -124,7 +151,34 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
               createEditorPane());
         splitPane.setResizeWeight(0.45);
         panel.add(splitPane, BorderLayout.CENTER);
-        panel.add(createButtonPane(), BorderLayout.PAGE_END);
+
+        JPanel footerPanel = new JPanel(new BorderLayout(4, 4));
+        footerPanel.add(createValidationPane(), BorderLayout.CENTER);
+        footerPanel.add(createButtonPane(), BorderLayout.PAGE_END);
+        panel.add(footerPanel, BorderLayout.PAGE_END);
+        return panel;
+    }
+
+    private JPanel createValidationPane() {
+        lblValidationSummary.setName("lblValidationSummary");
+
+        txtValidationLog.setName("txtValidationLog");
+        txtValidationLog.setEditable(false);
+        txtValidationLog.setLineWrap(true);
+        txtValidationLog.setWrapStyleWord(true);
+
+        btnCheckUnitSources.setName("btnCheckUnitSources");
+        btnCheckUnitSources.addActionListener(event -> checkUnitSourceReferences());
+
+        JPanel headerPanel = new JPanel(new BorderLayout(4, 4));
+        headerPanel.add(lblValidationSummary, BorderLayout.CENTER);
+        headerPanel.add(btnCheckUnitSources, BorderLayout.LINE_END);
+
+        JPanel panel = new JPanel(new BorderLayout(4, 4));
+        panel.setBorder(BorderFactory.createTitledBorder("Validation"));
+        panel.add(headerPanel, BorderLayout.PAGE_START);
+        panel.add(new JScrollPane(txtValidationLog), BorderLayout.CENTER);
+        updateValidationDisplay();
         return panel;
     }
 
@@ -300,7 +354,14 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
 
     private void closeDialog() {
         if (confirmSaveDiscardOrCancel()) {
-            setVisible(false);
+            dispose();
+        }
+    }
+
+    @Override
+    public void windowClosed(WindowEvent event) {
+        if (sourcebookEditorDialog == this) {
+            sourcebookEditorDialog = null;
         }
     }
 
@@ -328,10 +389,239 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         }
         rows.sort(Comparator.comparing(SourcebookRow::titleForSort, String.CASE_INSENSITIVE_ORDER));
         sourcebookTableModel.setRows(rows);
+        refreshSourcebookValidationWarnings(rows);
         updateFilter();
         if (selectedSourcebookKey != null) {
             selectSourcebook(selectedSourcebookKey);
         }
+    }
+
+    private void refreshSourcebookValidationWarnings(List<SourcebookRow> rows) {
+        sourcebookValidationWarnings.clear();
+        addDuplicateIdWarnings(rows);
+        addDuplicateTextWarnings(rows, "SKU", SourceBook::getSku);
+        addDuplicateTextWarnings(rows, "abbrev", SourceBook::getAbbrev);
+        addDuplicateTextWarnings(rows, "title", SourceBook::getTitle);
+        updateValidationDisplay();
+    }
+
+    private void addDuplicateIdWarnings(List<SourcebookRow> rows) {
+        Map<Integer, List<String>> sourcebooksById = new HashMap<>();
+        for (SourcebookRow row : rows) {
+            int id = row.sourceBook().getId();
+            if (id == -1 || id == 0) {
+                continue;
+            }
+            sourcebooksById.computeIfAbsent(id, ignored -> new ArrayList<>()).add(describeSourcebook(row));
+        }
+
+        sourcebooksById.entrySet().stream()
+              .filter(entry -> entry.getValue().size() > 1)
+              .sorted(Map.Entry.comparingByKey())
+              .forEach(entry -> sourcebookValidationWarnings.add("Duplicate MUL ID " + entry.getKey() + ": "
+                    + String.join("; ", entry.getValue())));
+    }
+
+    private void addDuplicateTextWarnings(List<SourcebookRow> rows, String fieldName,
+          Function<SourceBook, String> valueExtractor) {
+        Map<String, String> displayValues = new HashMap<>();
+        Map<String, List<String>> sourcebooksByValue = new HashMap<>();
+        for (SourcebookRow row : rows) {
+            String value = normalizedText(valueExtractor.apply(row.sourceBook()));
+            if (value.isBlank()) {
+                continue;
+            }
+
+            String key = value.toLowerCase(Locale.ROOT);
+            displayValues.putIfAbsent(key, value);
+            sourcebooksByValue.computeIfAbsent(key, ignored -> new ArrayList<>()).add(describeSourcebook(row));
+        }
+
+        sourcebooksByValue.entrySet().stream()
+              .filter(entry -> entry.getValue().size() > 1)
+              .sorted(Map.Entry.comparingByKey())
+              .forEach(entry -> sourcebookValidationWarnings.add("Duplicate " + fieldName + " \""
+                    + displayValues.get(entry.getKey()) + "\": " + String.join("; ", entry.getValue())));
+    }
+
+    private String describeSourcebook(SourcebookRow row) {
+        SourceBook sourceBook = row.sourceBook();
+        String title = normalizedText(sourceBook.getTitle());
+        String abbrev = normalizedText(sourceBook.getAbbrev());
+        if (!title.isBlank() && !abbrev.isBlank()) {
+            return row.fileName() + " [" + abbrev + " / " + title + "]";
+        } else if (!title.isBlank()) {
+            return row.fileName() + " [" + title + "]";
+        } else if (!abbrev.isBlank()) {
+            return row.fileName() + " [" + abbrev + "]";
+        }
+        return row.fileName();
+    }
+
+    private void checkUnitSourceReferences() {
+        unitSourceScanRunning = true;
+        unitSourceScanComplete = false;
+        unitSourceValidationWarnings.clear();
+        updateValidationDisplay();
+
+        new SwingWorker<List<String>, Void>() {
+            @Override
+            protected List<String> doInBackground() {
+                return findMissingUnitSourceWarnings();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    unitSourceValidationWarnings.clear();
+                    unitSourceValidationWarnings.addAll(get());
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    unitSourceValidationWarnings.add("Unit source scan was interrupted.");
+                } catch (ExecutionException exception) {
+                    LOGGER.error("", exception);
+                    unitSourceValidationWarnings.add("Unit source scan failed: " + executionExceptionMessage(
+                          exception));
+                } finally {
+                    unitSourceScanRunning = false;
+                    unitSourceScanComplete = true;
+                    updateValidationDisplay();
+                }
+            }
+        }.execute();
+    }
+
+    private List<String> findMissingUnitSourceWarnings() {
+        Set<String> availableSourcebookReferences = buildAvailableSourcebookReferences();
+        MekSummary[] units = MekSummaryCache.getInstance().getAllMeks();
+        List<String> warnings = new ArrayList<>();
+        if (units == null) {
+            warnings.add("Unit cache did not return any units to check.");
+            return warnings;
+        }
+
+        for (MekSummary unit : units) {
+            addMissingUnitSourceWarnings(warnings, unit, "source", unit.getSource(), availableSourcebookReferences);
+            addMissingUnitSourceWarnings(warnings, unit, "published", unit.getPublished(),
+                  availableSourcebookReferences);
+        }
+        return warnings;
+    }
+
+    private Set<String> buildAvailableSourcebookReferences() {
+        Set<String> availableSourcebookReferences = new HashSet<>();
+        for (String fileName : sourceBooks.availableSourcebooks()) {
+            addSourcebookReference(availableSourcebookReferences, fileName);
+            sourceBooks.loadSourceBook(fileName).ifPresent(sourceBook -> {
+                addSourcebookReference(availableSourcebookReferences, sourceBook.getSku());
+                addSourcebookReference(availableSourcebookReferences, sourceBook.getTitle());
+                addSourcebookReference(availableSourcebookReferences, sourceBook.getAbbrev());
+            });
+        }
+        return availableSourcebookReferences;
+    }
+
+    private void addSourcebookReference(Set<String> availableSourcebookReferences, String sourcebookReference) {
+        String reference = normalizedText(sourcebookReference);
+        if (reference.isBlank()) {
+            return;
+        }
+        availableSourcebookReferences.add(normalizedSourcebookReference(reference));
+        availableSourcebookReferences.add(normalizedSourcebookReference(sourceBooks.sourceBookKey(reference)));
+    }
+
+    private void addMissingUnitSourceWarnings(List<String> warnings, MekSummary unit, String fieldName,
+          String sourceList, Set<String> availableSourcebookReferences) {
+        for (String sourcebookName : SourceBooks.splitSourceList(sourceList)) {
+            if (!containsSourcebookReference(availableSourcebookReferences, sourcebookName)) {
+                warnings.add("Missing sourcebook referenced by " + fieldName + " \"" + sourcebookName
+                      + "\" for " + describeUnit(unit));
+            }
+        }
+    }
+
+    private boolean containsSourcebookReference(Set<String> availableSourcebookReferences, String sourcebookReference) {
+        return availableSourcebookReferences.contains(normalizedSourcebookReference(sourcebookReference))
+              || availableSourcebookReferences.contains(normalizedSourcebookReference(sourceBooks.sourceBookKey(
+                    sourcebookReference)));
+    }
+
+    private static String executionExceptionMessage(ExecutionException exception) {
+        if (exception.getCause() == null) {
+            return exception.getMessage();
+        }
+        return exception.getCause().getMessage();
+    }
+
+    private String describeUnit(MekSummary unit) {
+        String unitName = normalizedText(unit.getName());
+        if (unitName.isBlank()) {
+            unitName = "Unknown unit";
+        }
+
+        String sourceLocation = "";
+        var sourceFile = unit.getSourceFile();
+        if (sourceFile != null) {
+            sourceLocation = sourceFile.getName();
+        }
+        if (unit.getEntryName() != null) {
+            sourceLocation = sourceLocation.isBlank() ? unit.getEntryName() : sourceLocation + " >> "
+                  + unit.getEntryName();
+        }
+
+        return sourceLocation.isBlank() ? unitName : unitName + " (" + sourceLocation + ")";
+    }
+
+    private void updateValidationDisplay() {
+        int warningCount = sourcebookValidationWarnings.size() + unitSourceValidationWarnings.size();
+        btnCheckUnitSources.setEnabled(!unitSourceScanRunning);
+        btnCheckUnitSources.setText(unitSourceScanRunning ? "Checking..." : "Check Unit Sources");
+
+        if (unitSourceScanRunning) {
+            lblValidationSummary.setIcon(UIManager.getIcon("OptionPane.informationIcon"));
+            lblValidationSummary.setText("Checking unit source and published references...");
+        } else if (warningCount > 0) {
+            lblValidationSummary.setIcon(UIManager.getIcon("OptionPane.warningIcon"));
+            lblValidationSummary.setText(warningCount + " validation warning" + (warningCount == 1 ? "" : "s")
+                  + " found.");
+        } else if (unitSourceScanComplete) {
+            lblValidationSummary.setIcon(UIManager.getIcon("OptionPane.informationIcon"));
+            lblValidationSummary.setText("No validation warnings found.");
+        } else {
+            lblValidationSummary.setIcon(UIManager.getIcon("OptionPane.informationIcon"));
+            lblValidationSummary.setText("No sourcebook metadata warnings. Unit source references not checked.");
+        }
+
+        txtValidationLog.setText(validationLogText());
+        txtValidationLog.setCaretPosition(0);
+    }
+
+    private String validationLogText() {
+        List<String> logLines = new ArrayList<>();
+        if (sourcebookValidationWarnings.isEmpty()) {
+            logLines.add("Sourcebook metadata: no duplicate id, SKU, abbrev, or title warnings.");
+        } else {
+            logLines.add("Sourcebook metadata warnings:");
+            sourcebookValidationWarnings.forEach(warning -> logLines.add("- " + warning));
+        }
+
+        logLines.add("");
+        if (unitSourceScanRunning) {
+            logLines.add("Unit source scan: running...");
+        } else if (!unitSourceScanComplete) {
+            logLines.add("Unit source scan: not run. Click Check Unit Sources to scan unit source and published "
+                  + "entries.");
+        } else if (unitSourceValidationWarnings.isEmpty()) {
+            logLines.add("Unit source scan: no missing source or published sourcebooks found.");
+        } else {
+            logLines.add("Unit source warnings:");
+            unitSourceValidationWarnings.forEach(warning -> logLines.add("- " + warning));
+        }
+        return String.join(System.lineSeparator(), logLines);
+    }
+
+    private static String normalizedSourcebookReference(String sourcebookReference) {
+        return normalizedText(sourcebookReference).toLowerCase(Locale.ROOT);
     }
 
     private void reloadSourcebooks(String selectedSourcebookKey) {
@@ -509,12 +799,19 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
 
         try {
             sourceBooks.saveSourceBook(savedSourcebookKey, sourceBook);
+            clearUnitSourceScanResults();
             return savedSourcebookKey;
         } catch (IOException exception) {
             LOGGER.error("", exception);
             JOptionPane.showMessageDialog(this, exception.getMessage(), "Sourcebooks", JOptionPane.ERROR_MESSAGE);
             return null;
         }
+    }
+
+    private void clearUnitSourceScanResults() {
+        unitSourceScanComplete = false;
+        unitSourceValidationWarnings.clear();
+        updateValidationDisplay();
     }
 
     private boolean sourcebookKeyExistsForAnotherSourcebook(String candidateSourcebookKey) {
