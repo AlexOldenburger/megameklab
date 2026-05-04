@@ -729,8 +729,8 @@ public class SVGMassPrinter {
         public String type; // Major type, "Mek", "Vehicle", etc.
         public String subtype; // Subtype, "Assault", "Light", etc.
         public int omni; // 1 if the unit is Omni
-        public String source; // Source of the unit, e.g. "TR:3050"
-        public String published; // Source where the record sheet has been published, e.g. "RS:AS"
+        public List<String> source; // Source(s) of the unit, e.g. ["TR:3050"]
+        public List<String> published; // Source(s) where the record sheet has been published, e.g. ["RS:AS"]
         public boolean canon; // True if the unit is canon, false if is not (e.g. alt-universe or april fools units)
         public String role; // Role, "Assault", "Scout", etc.
         public String armorType; // Armor Type
@@ -868,6 +868,25 @@ public class SVGMassPrinter {
                 parts.add(cur.toString().trim());
             }
             return parts.stream().filter(s -> !s.isEmpty()).toArray(String[]::new);
+        }
+
+        private static List<String> splitSourceList(@Nullable String input) {
+            if (input == null || input.isBlank()) {
+                return List.of();
+            }
+
+            List<String> sources = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            for (String entry : input.split(",")) {
+                String source = entry.trim();
+                String sourceKey = source.toLowerCase(Locale.ROOT);
+                if (source.isEmpty() || sourceKey.equals("none") || !seen.add(sourceKey)) {
+                    continue;
+                }
+
+                sources.add(source);
+            }
+            return sources;
         }
 
         private static String unitTypeAsString(Entity entity) {
@@ -1138,8 +1157,8 @@ public class SVGMassPrinter {
             //                this.subtype = type;
             //            }
             this.omni = entity.isOmni() ? 1 : 0;
-            this.source = entity.getSource();
-            this.published = entity.getPublished();
+            this.source = splitSourceList(entity.getSource());
+            this.published = splitSourceList(entity.getPublished());
             this.canon = !entity.isNonCanonBySource();
             this.role = formatRole(entity);
             this.armorType = getArmorType(entity);
