@@ -249,15 +249,14 @@ public class SourcebookEditorDialog extends AbstractMMLDialog {
         addField(panel, constraints, row++, "Abbrev:", txtAbbrev);
         addBrowseField(panel, constraints, row++, "Image:", txtImage);
         addBrowseField(panel, constraints, row++, "URL:", txtUrl);
+        JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        checkboxPanel.add(chkIsPublished);
+        checkboxPanel.add(Box.createHorizontalStrut(12));
+        checkboxPanel.add(chkCanon);
         constraints.gridx = 1;
         constraints.gridy = row++;
         constraints.weightx = 1;
-        panel.add(chkIsPublished, constraints);
-
-        constraints.gridx = 1;
-        constraints.gridy = row++;
-        constraints.weightx = 1;
-        panel.add(chkCanon, constraints);
+        panel.add(checkboxPanel, constraints);
 
         addBrowseField(panel, constraints, row++, "MUL URL:", txtMulUrl);
 
