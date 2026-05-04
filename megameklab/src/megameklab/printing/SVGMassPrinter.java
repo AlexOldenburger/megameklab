@@ -729,7 +729,9 @@ public class SVGMassPrinter {
         public String type; // Major type, "Mek", "Vehicle", etc.
         public String subtype; // Subtype, "Assault", "Light", etc.
         public int omni; // 1 if the unit is Omni
-        public String source; // Source of the unit, e.g. "TRO 3050"
+        public String source; // Source of the unit, e.g. "TR:3050"
+        public String published; // Source where the record sheet has been published, e.g. "RS:AS"
+        public boolean canon; // True if the unit is canon, false if is not (e.g. alt-universe or april fools units)
         public String role; // Role, "Assault", "Scout", etc.
         public String armorType; // Armor Type
         public String structureType; // Internal Structure Type
@@ -1137,6 +1139,8 @@ public class SVGMassPrinter {
             //            }
             this.omni = entity.isOmni() ? 1 : 0;
             this.source = entity.getSource();
+            this.published = entity.getPublished();
+            this.canon = !entity.isNonCanonBySource();
             this.role = formatRole(entity);
             this.armorType = getArmorType(entity);
             this.structureType = getStructureType(entity);
