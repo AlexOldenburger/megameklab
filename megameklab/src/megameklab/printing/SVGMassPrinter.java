@@ -134,7 +134,7 @@ import static megamek.common.equipment.WeaponType.DAMAGE_VARIABLE;
  */
 public class SVGMassPrinter {
     static ResourceBundle resourcesTabs = ResourceBundle.getBundle("megameklab.resources.Tabs");
-    private final static boolean SKIP_SVG = false; // Set to true to skip SVG generation
+    private final static boolean SKIP_SVG = true; // Set to true to skip SVG generation
     private final static boolean SKIP_UNITS = false; // Set to true to skip units generation
     private final static boolean SKIP_EQUIPMENT = false; // Set to true to skip equipment generation
     private final static boolean SKIP_UNIT_FILES = true; // Set to true to skip BLK/MTF re-save generation
@@ -145,6 +145,7 @@ public class SVGMassPrinter {
     private static final String SHEETS_DIR = "sheets";
     private static final String UNIT_FILES_DIR = "unitfiles";
     private static final String UNIT_FILE = "units.json";
+    private static final String UNIT_FLUFF_FILE = "units-fluff.json";
     private static final String EQUIPMENT_FILE = "equipment2.json";
     private static final String ROOT_FOLDER = "../../svgexport";
         private static final String LICENSE_HEADER = """
@@ -763,6 +764,8 @@ public class SVGMassPrinter {
         public String icon; // Path to the unit icon
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         public Map<String, Object> fluff;
+        @JsonIgnore
+        public Map<String, Object> detachedFluff;
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         public List<Object> cargo;
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -1183,8 +1186,12 @@ public class SVGMassPrinter {
             this.features = getFeatures(entity);
             this.icon = getEntityIcon(entity);
             Map<String, Object> fluffMap = getFluffAttributes(entity);
+            Object fluffImage = fluffMap.get("img");
+            if (fluffImage instanceof String image && !image.isBlank()) {
+                this.fluff = Map.of("img", image);
+            }
             if (!fluffMap.isEmpty()) {
-                this.fluff = fluffMap;
+                this.detachedFluff = fluffMap;
             }
             List<Object> cargoMap = getCargo(entity);
             if (cargoMap != null && !cargoMap.isEmpty()) {
@@ -2017,6 +2024,21 @@ public class SVGMassPrinter {
             jsonWriter.write("\n]}");
         } catch (IOException e) {
             logger.error("Failed to write JSON Lines file: {}", e.getMessage());
+        }
+
+        Map<String, Map<String, Object>> unitFluffMap = new TreeMap<>();
+        for (UnitData unitData : unitDataList) {
+            if ((unitData.detachedFluff != null) && !unitData.detachedFluff.isEmpty()) {
+                unitFluffMap.put(unitData.name, unitData.detachedFluff);
+            }
+        }
+        Map<String, Object> unitFluffRoot = new LinkedHashMap<>();
+        unitFluffRoot.put("version", timestamp);
+        unitFluffRoot.put("fluff", unitFluffMap);
+        try (FileWriter jsonWriter = new FileWriter(ROOT_FOLDER + File.separator + UNIT_FLUFF_FILE)) {
+            mapper.writer().writeValue(jsonWriter, unitFluffRoot);
+        } catch (IOException e) {
+            logger.error("Failed to write unit fluff file: {}", e.getMessage());
         }
 
         if (!duplicateUnits.isEmpty()) {
